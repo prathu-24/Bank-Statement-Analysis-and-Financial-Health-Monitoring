@@ -11,6 +11,10 @@ class NormalizedTransaction(BaseModel):
     category: str = Field(default="Uncategorized", description="Expense or income category")
     reference_id: Optional[str] = None
     raw_row: Optional[Dict[str, Any]] = None
+    source_page: Optional[int] = Field(default=1, description="Page number where transaction was found")
+    source_row: Optional[int] = Field(default=None, description="Row index in source statement")
+    raw_text: Optional[str] = Field(default="", description="Original raw line text from statement")
+    extraction_confidence: float = Field(default=1.0, description="Extraction confidence score (0.0 to 1.0)")
 
 class ColumnMapping(BaseModel):
     date_col: str

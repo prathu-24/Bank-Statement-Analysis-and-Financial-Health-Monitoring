@@ -118,16 +118,43 @@ export default function ValidationReportView({ report, filename, detectedFormat,
         </div>
       </div>
 
-      {/* Arithmetic Verification Details */}
-      <div className="p-4 bg-slate-900/70 border border-slate-800 rounded-xl flex items-center gap-3">
-        <div className="p-2 bg-indigo-500/10 text-indigo-400 rounded-lg">
-          <Scale className="w-5 h-5" />
+      {/* Statement-Level Ledger Reconciliation Audit */}
+      <div className={`p-4 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs ${
+        report.statement_balance_reconciled !== false
+          ? 'bg-emerald-500/5 border-emerald-500/20 text-emerald-300'
+          : 'bg-rose-500/10 border-rose-500/30 text-rose-300'
+      }`}>
+        <div className="flex items-center gap-3">
+          <div className={`p-2 rounded-lg ${
+            report.statement_balance_reconciled !== false ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/20 text-rose-400'
+          }`}>
+            <Scale className="w-5 h-5" />
+          </div>
+          <div>
+            <span className="font-semibold text-white block">
+              {report.statement_balance_reconciled !== false
+                ? "Statement-Level Ledger Balance: Reconciled"
+                : "Statement-Level Ledger Discrepancy Detected"}
+            </span>
+            <p className="text-slate-400 mt-0.5">
+              Opening: <strong className="text-slate-200">₹{Number(report.opening_balance || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong>
+              {' '}+ Credits: <strong className="text-emerald-400">₹{Number(report.total_credits || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong>
+              {' '}- Debits: <strong className="text-rose-400">₹{Number(report.total_debits || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong>
+              {' '}≈ Calculated Closing: <strong className="text-white">₹{Number(report.calculated_closing_balance || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong>
+            </p>
+          </div>
         </div>
-        <div className="text-xs text-slate-300">
-          <strong className="text-white block font-medium">Mathematical Direction Verification:</strong>
-          Verified ledger balance continuity using formula: 
-          <code className="mx-1 px-1.5 py-0.5 bg-slate-800 rounded text-indigo-300 font-mono">Previous Balance + Credit - Debit ≈ Current Balance</code> 
-          with ₹1.00 rounding tolerance. No valid transactions were discarded.
+
+        <div className="text-right">
+          <span className="text-slate-400 block text-[11px]">Recorded Closing Balance:</span>
+          <span className="font-mono font-bold text-white text-sm">
+            ₹{Number(report.closing_balance || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+          </span>
+          {report.statement_balance_discrepancy > 0 && (
+            <span className="text-[10px] text-rose-400 font-semibold block">
+              Drift: ₹{Number(report.statement_balance_discrepancy).toFixed(2)}
+            </span>
+          )}
         </div>
       </div>
 

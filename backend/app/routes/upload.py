@@ -153,7 +153,11 @@ async def confirm_and_save(transactions: List[NormalizedTransaction], db: Sessio
             credit=tx.credit,
             balance=tx.balance,
             category=cat or "Uncategorized",
-            reference_id=masked_ref
+            reference_id=masked_ref,
+            source_page=tx.source_page or 1,
+            source_row=tx.source_row,
+            raw_text=DataSanitizer.mask_sensitive_data(tx.raw_text or ""),
+            extraction_confidence=tx.extraction_confidence if tx.extraction_confidence is not None else 1.0
         )
         db_models.append(model)
 

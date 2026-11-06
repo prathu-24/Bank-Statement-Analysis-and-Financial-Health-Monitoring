@@ -92,6 +92,11 @@ export const statementApi = {
     return response.data;
   },
 
+  getEvidence: async (params = {}) => {
+    const response = await api.get('/evidence', { params });
+    return response.data;
+  },
+
   deleteAllData: async () => {
     const response = await api.delete('/privacy/delete-all');
     return response.data;

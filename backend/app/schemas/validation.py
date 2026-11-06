@@ -18,6 +18,15 @@ class ValidationReport(BaseModel):
     balance_mismatch_count: int = 0
     date_range_start: Optional[str] = None
     date_range_end: Optional[str] = None
+    opening_balance: Optional[float] = None
+    closing_balance: Optional[float] = None
+    total_credits: float = 0.0
+    total_debits: float = 0.0
+    calculated_closing_balance: Optional[float] = None
+    statement_balance_discrepancy: float = 0.0
+    statement_balance_reconciled: bool = True
+    methodology: str = "Opening Balance + Total Credits - Total Debits ≈ Closing Balance (tolerance ±₹1.00)"
+    assumptions: Dict[str, Any] = {}
     issues: List[ValidationIssue] = []
     summary: str = ""
 

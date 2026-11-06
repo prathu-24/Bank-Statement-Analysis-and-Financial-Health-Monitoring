@@ -79,6 +79,9 @@ class HDFCParser(BaseParser):
             if debit == 0.0 and credit == 0.0 and balance == 0.0:
                 continue
 
+            csv_row_num = header_idx + 2 + int(idx)
+            raw_line = lines[header_idx + 1 + int(idx)] if (header_idx + 1 + int(idx)) < len(lines) else ", ".join(f"{k}:{v}" for k, v in row.items())
+
             tx = NormalizedTransaction(
                 id=f"hdfc-{idx+1}",
                 date=parsed_date,
@@ -88,6 +91,10 @@ class HDFCParser(BaseParser):
                 balance=balance,
                 category="Uncategorized",
                 reference_id=ref_id,
+                source_page=1,
+                source_row=csv_row_num,
+                raw_text=raw_line,
+                extraction_confidence=1.0,
                 raw_row={k: str(v) for k, v in row.to_dict().items() if pd.notna(v)}
             )
             transactions.append(tx)

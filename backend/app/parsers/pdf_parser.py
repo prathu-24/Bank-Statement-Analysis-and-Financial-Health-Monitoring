@@ -97,6 +97,8 @@ class PDFParser(BaseParser):
             if debit == 0.0 and credit == 0.0 and balance == 0.0:
                 continue
 
+            raw_row_line = " | ".join([str(c or '').strip() for c in row])
+
             tx = NormalizedTransaction(
                 id=f"pdf-p{page_idx+1}-r{row_idx}",
                 date=parsed_date,
@@ -104,7 +106,11 @@ class PDFParser(BaseParser):
                 debit=debit,
                 credit=credit,
                 balance=balance,
-                category="Uncategorized"
+                category="Uncategorized",
+                source_page=page_idx + 1,
+                source_row=row_idx + 1,
+                raw_text=raw_row_line,
+                extraction_confidence=1.0
             )
             txs.append(tx)
 
@@ -142,7 +148,11 @@ class PDFParser(BaseParser):
                     debit=debit,
                     credit=credit,
                     balance=balance,
-                    category="Uncategorized"
+                    category="Uncategorized",
+                    source_page=1,
+                    source_row=idx + 1,
+                    raw_text=line,
+                    extraction_confidence=0.85
                 ))
 
         return txs

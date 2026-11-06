@@ -30,6 +30,7 @@ import {
   CartesianGrid
 } from 'recharts';
 import { statementApi } from '../services/api';
+import EvidenceDrawer from '../components/EvidenceDrawer';
 
 const CATEGORY_COLORS = [
   '#6366f1', '#ec4899', '#10b981', '#f59e0b',
@@ -43,6 +44,7 @@ export default function DashboardPage() {
   const [data, setData] = useState(null);
   const [selectedMonth, setSelectedMonth] = useState('ALL');
   const [whyModal, setWhyModal] = useState({ open: false, title: '', content: '' });
+  const [evidenceDrawer, setEvidenceDrawer] = useState({ open: false, title: '', queryParams: null });
 
   useEffect(() => {
     fetchSummary(selectedMonth);
@@ -144,8 +146,18 @@ export default function DashboardPage() {
               <TrendingUp className="w-4 h-4" />
             </div>
           </div>
-          <div className="mt-3">
+          <div className="mt-3 flex items-baseline justify-between">
             <span className="text-2xl font-bold text-white">{formatINR(kpi.total_income)}</span>
+            <button
+              onClick={() => setEvidenceDrawer({
+                open: true,
+                title: `Total Income Proof Trail (${selectedMonth})`,
+                queryParams: { metric: 'total_income', month: selectedMonth }
+              })}
+              className="text-[11px] font-semibold text-emerald-400 hover:text-emerald-300 hover:underline"
+            >
+              Audit Proof &rarr;
+            </button>
           </div>
           <div className="mt-2 flex items-center justify-between text-[11px]">
             {mom.income_change_pct !== 0 ? (
@@ -179,8 +191,18 @@ export default function DashboardPage() {
               <TrendingDown className="w-4 h-4" />
             </div>
           </div>
-          <div className="mt-3">
+          <div className="mt-3 flex items-baseline justify-between">
             <span className="text-2xl font-bold text-white">{formatINR(kpi.total_expense)}</span>
+            <button
+              onClick={() => setEvidenceDrawer({
+                open: true,
+                title: `Total Expense Proof Trail (${selectedMonth})`,
+                queryParams: { metric: 'total_spend', month: selectedMonth }
+              })}
+              className="text-[11px] font-semibold text-rose-400 hover:text-rose-300 hover:underline"
+            >
+              Audit Proof &rarr;
+            </button>
           </div>
           <div className="mt-2 flex items-center justify-between text-[11px]">
             {mom.expense_change_pct !== 0 ? (
@@ -214,10 +236,20 @@ export default function DashboardPage() {
               <Wallet className="w-4 h-4" />
             </div>
           </div>
-          <div className="mt-3">
+          <div className="mt-3 flex items-baseline justify-between">
             <span className={`text-2xl font-bold ${kpi.net_savings >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
               {formatINR(kpi.net_savings)}
             </span>
+            <button
+              onClick={() => setEvidenceDrawer({
+                open: true,
+                title: `Net Savings Inflow/Outflow Rows (${selectedMonth})`,
+                queryParams: { metric: 'net_savings', month: selectedMonth }
+              })}
+              className="text-[11px] font-semibold text-indigo-400 hover:text-indigo-300 hover:underline"
+            >
+              Audit Proof &rarr;
+            </button>
           </div>
           <div className="mt-2 flex items-center justify-between text-[11px]">
             <span className="text-slate-300 font-semibold">
@@ -350,7 +382,15 @@ export default function DashboardPage() {
           {/* Category List */}
           <div className="mt-4 space-y-2 max-h-36 overflow-y-auto pr-1">
             {category_breakdown.slice(0, 5).map((cat, idx) => (
-              <div key={cat.category} className="flex items-center justify-between text-xs">
+              <div
+                key={cat.category}
+                onClick={() => setEvidenceDrawer({
+                  open: true,
+                  title: `${cat.category} Evidence Rows (${selectedMonth})`,
+                  queryParams: { metric: 'category_spend', category: cat.category, month: selectedMonth }
+                })}
+                className="flex items-center justify-between text-xs p-1 rounded-lg hover:bg-slate-800/60 cursor-pointer transition"
+              >
                 <div className="flex items-center gap-2">
                   <span
                     className="w-2.5 h-2.5 rounded-full"
@@ -390,7 +430,15 @@ export default function DashboardPage() {
               const maxSpend = top_merchants[0]?.amount || 1;
               const barWidth = Math.min(100, Math.round((m.amount / maxSpend) * 100));
               return (
-                <div key={m.merchant} className="space-y-1">
+                <div
+                  key={m.merchant}
+                  onClick={() => setEvidenceDrawer({
+                    open: true,
+                    title: `${m.merchant} Statement Transactions`,
+                    queryParams: { metric: 'recurring_item', merchant: m.merchant, month: selectedMonth }
+                  })}
+                  className="space-y-1 p-1 rounded-lg hover:bg-slate-800/50 cursor-pointer transition"
+                >
                   <div className="flex items-center justify-between text-xs">
                     <span className="font-medium text-slate-200 flex items-center gap-2">
                       <span className="text-[10px] text-slate-500 font-mono w-4">#{idx + 1}</span>
@@ -478,6 +526,13 @@ export default function DashboardPage() {
           </div>
         </div>
       )}
+      {/* Evidence Proof Drawer */}
+      <EvidenceDrawer
+        isOpen={evidenceDrawer.open}
+        onClose={() => setEvidenceDrawer({ open: false, title: '', queryParams: null })}
+        title={evidenceDrawer.title}
+        queryParams={evidenceDrawer.queryParams}
+      />
     </div>
   );
 }

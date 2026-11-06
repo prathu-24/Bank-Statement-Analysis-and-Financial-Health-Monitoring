@@ -11,9 +11,11 @@ import {
   TrendingDown,
   Layers,
   Check,
-  EyeOff
+  EyeOff,
+  FileText
 } from 'lucide-react';
 import { statementApi } from '../services/api';
+import EvidenceDrawer from '../components/EvidenceDrawer';
 
 export default function RecurringPage() {
   const [loading, setLoading] = useState(true);
@@ -22,6 +24,7 @@ export default function RecurringPage() {
   const [tab, setTab] = useState('ALL');
   const [anomalyFilter, setAnomalyFilter] = useState('PENDING'); // PENDING or ALL
   const [whyModal, setWhyModal] = useState({ open: false, title: '', content: '' });
+  const [evidenceDrawer, setEvidenceDrawer] = useState({ open: false, title: '', queryParams: null });
   const [dismissingId, setDismissingId] = useState(null);
 
   useEffect(() => {
@@ -242,7 +245,7 @@ export default function RecurringPage() {
 
                   <p className="text-xs text-slate-200">{alert.reason}</p>
 
-                  <div className="flex items-center gap-2 pt-0.5">
+                  <div className="flex items-center gap-3 pt-0.5">
                     <button
                       onClick={() => setWhyModal({
                         open: true,
@@ -253,6 +256,17 @@ export default function RecurringPage() {
                     >
                       <HelpCircle className="w-3.5 h-3.5" />
                       Why am I seeing this?
+                    </button>
+                    <button
+                      onClick={() => setEvidenceDrawer({
+                        open: true,
+                        title: `Alert Source Transaction: ${alert.merchant}`,
+                        queryParams: { metric: 'alert', alert_id: alert.alert_id }
+                      })}
+                      className="text-[11px] text-slate-400 hover:text-white flex items-center gap-1 font-medium"
+                    >
+                      <FileText className="w-3.5 h-3.5" />
+                      View Source Line
                     </button>
                   </div>
                 </div>
@@ -371,10 +385,18 @@ export default function RecurringPage() {
                   </div>
                 </div>
 
-                <div className="pt-2 flex items-center justify-between">
-                  <span className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold">
-                    Detected Pattern
-                  </span>
+                <div className="pt-2 flex items-center justify-between border-t border-slate-800/60">
+                  <button
+                    onClick={() => setEvidenceDrawer({
+                      open: true,
+                      title: `${item.merchant} Recurring Source Rows`,
+                      queryParams: { metric: 'recurring_item', merchant: item.merchant }
+                    })}
+                    className="text-[11px] text-emerald-400 hover:text-emerald-300 font-semibold flex items-center gap-1"
+                  >
+                    <FileText className="w-3.5 h-3.5" />
+                    Audit Rows &rarr;
+                  </button>
                   <button
                     onClick={() => setWhyModal({
                       open: true,
@@ -384,7 +406,7 @@ export default function RecurringPage() {
                     className="text-xs text-indigo-400 hover:text-indigo-300 flex items-center gap-1 font-medium"
                   >
                     <HelpCircle className="w-3.5 h-3.5" />
-                    Why am I seeing this?
+                    Why?
                   </button>
                 </div>
               </div>
@@ -415,6 +437,13 @@ export default function RecurringPage() {
           </div>
         </div>
       )}
+      {/* Evidence Drawer */}
+      <EvidenceDrawer
+        isOpen={evidenceDrawer.open}
+        onClose={() => setEvidenceDrawer({ open: false, title: '', queryParams: null })}
+        title={evidenceDrawer.title}
+        queryParams={evidenceDrawer.queryParams}
+      />
     </div>
   );
 }

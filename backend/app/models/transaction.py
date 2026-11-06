@@ -15,5 +15,9 @@ class TransactionModel(Base):
     category = Column(String, index=True, default="Uncategorized")
     user_overridden = Column(Boolean, default=False)
     reference_id = Column(String, nullable=True)
+    source_page = Column(Integer, nullable=True, default=1)
+    source_row = Column(Integer, nullable=True)
+    raw_text = Column(String, nullable=True, default="")
+    extraction_confidence = Column(Float, default=1.0)
     created_at = Column(DateTime, default=datetime.utcnow)
 

@@ -26,3 +26,21 @@ def init_db():
     import app.models.alert
     Base.metadata.create_all(bind=engine)
 
+    # Safe SQLite column migration guard
+    with engine.connect() as conn:
+        try:
+            result = conn.exec_driver_sql("PRAGMA table_info(transactions)").fetchall()
+            existing_cols = {row[1] for row in result}
+            new_columns = [
+                ("source_page", "INTEGER DEFAULT 1"),
+                ("source_row", "INTEGER"),
+                ("raw_text", "TEXT DEFAULT ''"),
+                ("extraction_confidence", "FLOAT DEFAULT 1.0"),
+            ]
+            for col_name, col_type in new_columns:
+                if col_name not in existing_cols:
+                    conn.exec_driver_sql(f"ALTER TABLE transactions ADD COLUMN {col_name} {col_type}")
+            conn.commit()
+        except Exception:
+            pass
+

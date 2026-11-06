@@ -156,6 +156,70 @@ class StatementValidator:
                     )
                 )
 
+        # 4. Statement-Level Global Balance Check: Opening + Total Credits - Total Debits = Closing
+        total_credits = round(sum(tx.credit for tx in transactions), 2)
+        total_debits = round(sum(tx.debit for tx in transactions), 2)
+
+        if is_ascending:
+            first_tx = transactions[0]
+            last_tx = transactions[-1]
+            opening_balance = round(first_tx.balance + first_tx.debit - first_tx.credit, 2)
+            closing_balance = round(last_tx.balance, 2)
+        else:
+            first_tx = transactions[-1]
+            last_tx = transactions[0]
+            opening_balance = round(first_tx.balance + first_tx.debit - first_tx.credit, 2)
+            closing_balance = round(last_tx.balance, 2)
+
+        calculated_closing = round(opening_balance + total_credits - total_debits, 2)
+        statement_discrepancy = round(abs(closing_balance - calculated_closing), 2)
+        statement_reconciled = statement_discrepancy <= cls.TOLERANCE
+
+        if not statement_reconciled:
+            issues.append(
+                ValidationIssue(
+                    level="ERROR",
+                    code="STATEMENT_BALANCE_DISCREPANCY",
+                    message=(
+                        f"Statement-level ledger check failed: Opening (₹{opening_balance:,.2f}) + "
+                        f"Credits (₹{total_credits:,.2f}) - Debits (₹{total_debits:,.2f}) = "
+                        f"₹{calculated_closing:,.2f}, differing from recorded closing balance "
+                        f"₹{closing_balance:,.2f} by ₹{statement_discrepancy:,.2f}."
+                    ),
+                    details={
+                        "opening_balance": opening_balance,
+                        "closing_balance": closing_balance,
+                        "total_credits": total_credits,
+                        "total_debits": total_debits,
+                        "calculated_closing_balance": calculated_closing,
+                        "discrepancy": statement_discrepancy
+                    }
+                )
+            )
+
+        # 5. Extraction Confidence Scoring per Row
+        for idx, tx in enumerate(transactions, start=1):
+            conf = 1.0
+            reasons = []
+            if idx in error_rows:
+                conf = min(conf, 0.50)
+                reasons.append("Row format or date validation error")
+            if idx in warning_rows:
+                if any(iss.code == "BALANCE_MISMATCH" and iss.row_number == idx for iss in issues):
+                    conf = min(conf, 0.60)
+                    reasons.append("Row ledger balance drift")
+                elif any(iss.code == "DUPLICATE_TXN" and iss.row_number == idx for iss in issues):
+                    conf = min(conf, 0.70)
+                    reasons.append("Duplicate transaction")
+                elif any(iss.code == "MISSING_DESCRIPTION" and iss.row_number == idx for iss in issues):
+                    conf = min(conf, 0.85)
+                    reasons.append("Empty narration")
+
+            if not statement_reconciled:
+                conf = round(conf * 0.90, 2)
+
+            tx.extraction_confidence = round(conf, 2)
+
         error_count = len([iss for iss in issues if iss.level == "ERROR"])
         warning_count = len([iss for iss in issues if iss.level == "WARNING"])
         valid_rows = total_rows - len(error_rows)
@@ -181,6 +245,15 @@ class StatementValidator:
             balance_mismatch_count=balance_mismatch_count,
             date_range_start=date_start,
             date_range_end=date_end,
+            opening_balance=opening_balance,
+            closing_balance=closing_balance,
+            total_credits=total_credits,
+            total_debits=total_debits,
+            calculated_closing_balance=calculated_closing,
+            statement_balance_discrepancy=statement_discrepancy,
+            statement_balance_reconciled=statement_reconciled,
+            methodology="Opening Balance + Total Credits - Total Debits ≈ Closing Balance (tolerance ±₹1.00)",
+            assumptions={"tolerance": cls.TOLERANCE, "order": "ascending" if is_ascending else "descending"},
             issues=issues,
             summary=summary
         )

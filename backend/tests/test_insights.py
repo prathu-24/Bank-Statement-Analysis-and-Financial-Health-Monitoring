@@ -59,3 +59,4 @@ def test_explainable_ai_summary_offline():
     assert len(ai_overview["key_takeaways"]) >= 3
     assert "privacy_guarantee" in ai_overview
     assert ai_overview["llm_enhanced"] is False  # Offline rule fallback operates transparently
+

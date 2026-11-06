@@ -20,3 +20,4 @@ def get_financial_insights(db: Session = Depends(get_db)):
 
     insights_data = FinancialInsightsEngine.generate_all(transactions, alerts)
     return insights_data
+

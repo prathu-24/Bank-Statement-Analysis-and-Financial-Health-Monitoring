@@ -355,3 +355,4 @@ class FinancialInsightsEngine:
             "llm_enhanced": False,
             "privacy_guarantee": "Processed locally without transmitting raw bank statement records to third-party endpoints."
         }
+

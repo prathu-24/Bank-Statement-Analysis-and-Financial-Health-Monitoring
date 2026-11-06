@@ -6,15 +6,7 @@ import DashboardPage from './pages/DashboardPage';
 import TransactionsPage from './pages/TransactionsPage';
 import RecurringPage from './pages/RecurringPage';
 import ForecastPage from './pages/ForecastPage';
-
-function InsightsPlaceholder() {
-  return (
-    <div className="max-w-4xl mx-auto py-12 text-center text-slate-400">
-      <h2 className="text-xl font-bold text-white mb-2">Financial Health & Explainable AI Insights</h2>
-      <p className="text-xs">Phase 5 module: 100-point transparent health scoring, distress signals, and budget recommendations.</p>
-    </div>
-  );
-}
+import InsightsPage from './pages/InsightsPage';
 
 export default function App() {
   return (
@@ -27,7 +19,7 @@ export default function App() {
           <Route path="transactions" element={<TransactionsPage />} />
           <Route path="recurring" element={<RecurringPage />} />
           <Route path="forecast" element={<ForecastPage />} />
-          <Route path="insights" element={<InsightsPlaceholder />} />
+          <Route path="insights" element={<InsightsPage />} />
         </Route>
       </Routes>
     </BrowserRouter>

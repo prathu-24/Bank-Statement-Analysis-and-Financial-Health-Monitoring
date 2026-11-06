@@ -10,7 +10,10 @@ import {
   DollarSign,
   Layers,
   Sparkles,
-  Info
+  Info,
+  ShieldCheck,
+  Activity,
+  History
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -29,6 +32,7 @@ export default function ForecastPage() {
   const [loading, setLoading] = useState(true);
   const [forecast, setForecast] = useState(null);
   const [horizonDays, setHorizonDays] = useState(30);
+  const [viewMode, setViewMode] = useState('PROBABILISTIC'); // 'PROBABILISTIC' or 'DETERMINISTIC'
   const [whyModal, setWhyModal] = useState({ open: false, title: '', content: '' });
 
   useEffect(() => {
@@ -74,9 +78,14 @@ export default function ForecastPage() {
     daily_projection = [],
     crunch_points = [],
     primary_crunch_alert,
+    probabilistic,
+    backtest,
     assumptions = {},
     disclaimer
   } = forecast || {};
+
+  const probDistribution = probabilistic?.daily_distribution || [];
+  const riskMetrics = probabilistic?.risk_metrics || {};
 
   return (
     <div className="space-y-8 max-w-7xl mx-auto">
@@ -89,19 +98,42 @@ export default function ForecastPage() {
           </p>
         </div>
 
-        {/* Horizon Selector */}
-        <div className="flex items-center gap-1.5 bg-slate-900 border border-slate-800 p-1 rounded-xl text-xs">
-          {[14, 30, 60].map(d => (
+        <div className="flex flex-wrap items-center gap-3">
+          {/* Mode Switcher */}
+          <div className="flex items-center gap-1 bg-slate-900 border border-slate-800 p-1 rounded-xl text-xs">
             <button
-              key={d}
-              onClick={() => setHorizonDays(d)}
-              className={`px-3 py-1.5 rounded-lg font-semibold transition ${
-                horizonDays === d ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white'
+              onClick={() => setViewMode('PROBABILISTIC')}
+              className={`px-3 py-1.5 rounded-lg font-semibold flex items-center gap-1.5 transition ${
+                viewMode === 'PROBABILISTIC' ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30' : 'text-slate-400 hover:text-white'
               }`}
             >
-              {d} Days
+              <Activity className="w-3.5 h-3.5" />
+              Monte Carlo (p10/p50/p90)
             </button>
-          ))}
+            <button
+              onClick={() => setViewMode('DETERMINISTIC')}
+              className={`px-3 py-1.5 rounded-lg font-semibold transition ${
+                viewMode === 'DETERMINISTIC' ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30' : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              Single-Line Baseline
+            </button>
+          </div>
+
+          {/* Horizon Selector */}
+          <div className="flex items-center gap-1 bg-slate-900 border border-slate-800 p-1 rounded-xl text-xs">
+            {[14, 30, 60].map(d => (
+              <button
+                key={d}
+                onClick={() => setHorizonDays(d)}
+                className={`px-3 py-1.5 rounded-lg font-semibold transition ${
+                  horizonDays === d ? 'bg-slate-700 text-white' : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                {d}D
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -137,6 +169,91 @@ export default function ForecastPage() {
             <p className="text-[11px] text-slate-400">
               💡 <strong>Preventative Action:</strong> Delay non-urgent discretionary purchases or temporarily transfer buffer funds to maintain liquidity before scheduled deductions.
             </p>
+          </div>
+        </div>
+      )}
+
+      {/* Probabilistic Risk Metrics Panel */}
+      {viewMode === 'PROBABILISTIC' && probabilistic?.has_data && (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {/* Pre-Payday Shortage Risk Card */}
+          <div className="p-5 rounded-2xl bg-slate-900/90 border border-slate-800 shadow-sm space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-medium text-slate-400">Pre-Payday Shortage Risk</span>
+              <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${
+                riskMetrics.risk_level === 'CRITICAL' ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30' :
+                riskMetrics.risk_level === 'ELEVATED' ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30' :
+                'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+              }`}>
+                {riskMetrics.risk_level || 'EVALUATED'}
+              </span>
+            </div>
+            <div className="flex items-baseline gap-2 mt-1">
+              <span className="text-3xl font-extrabold text-white font-mono">
+                {riskMetrics.p_negative_pre_payday || 0}%
+              </span>
+              <span className="text-xs text-slate-400">P(Balance &lt; ₹0)</span>
+            </div>
+            <p className="text-[11px] text-slate-400 leading-relaxed">
+              Risk of depleting liquid funds before next payday ({riskMetrics.first_payday_estimated || 'estimated'}). 
+              P(Dipping below ₹3k buffer) is <strong>{riskMetrics.p_safety_floor_breach_pre_payday || 0}%</strong>.
+            </p>
+          </div>
+
+          {/* Likely Danger Date */}
+          <div className="p-5 rounded-2xl bg-slate-900/90 border border-slate-800 shadow-sm space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-medium text-slate-400">Imminent Danger Date</span>
+              <div className="p-1.5 rounded-lg bg-rose-500/10 text-rose-400">
+                <AlertOctagon className="w-4 h-4" />
+              </div>
+            </div>
+            <div className="mt-1">
+              <span className="text-2xl font-bold text-white font-mono">
+                {riskMetrics.danger_date || "No Imminent Dip"}
+              </span>
+            </div>
+            <p className="text-[11px] text-slate-400 leading-relaxed">
+              {riskMetrics.danger_date
+                ? "Monte Carlo cluster where simulated debits concentrate before incoming salary credits."
+                : "Liquidity trajectory remains comfortably above safety buffer across simulation horizon."}
+            </p>
+          </div>
+
+          {/* Walk-Forward Backtest Card */}
+          <div className="p-5 rounded-2xl bg-slate-900/90 border border-slate-800 shadow-sm space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-medium text-slate-400 flex items-center gap-1.5">
+                <History className="w-3.5 h-3.5 text-indigo-400" />
+                Walk-Forward Backtest
+              </span>
+              {backtest?.is_supported && (
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                  {backtest.coverage_quality} FIT
+                </span>
+              )}
+            </div>
+
+            {backtest?.is_supported ? (
+              <div>
+                <div className="flex items-baseline gap-2 mt-1">
+                  <span className="text-3xl font-extrabold text-white font-mono">
+                    {backtest.empirical_coverage_pct}%
+                  </span>
+                  <span className="text-xs text-slate-400">80% Interval Coverage</span>
+                </div>
+                <p className="text-[11px] text-slate-400 mt-1 leading-relaxed">
+                  Actual holdout balances inside [p10, p90] interval. Mean Absolute Error: <strong>₹{backtest.mean_absolute_error?.toLocaleString('en-IN')}</strong>.
+                </p>
+              </div>
+            ) : (
+              <div className="mt-2">
+                <span className="text-xs text-amber-400 font-semibold block">Insufficient History</span>
+                <p className="text-[11px] text-slate-400 mt-0.5 leading-relaxed">
+                  {backtest?.reason || "Requires minimum 60 days of historical transactions to hold out 30 days."}
+                </p>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -182,53 +299,121 @@ export default function ForecastPage() {
       <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-6 shadow-sm space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
-            <h3 className="text-base font-bold text-white">Daily Projected Balance Trajectory</h3>
+            <h3 className="text-base font-bold text-white flex items-center gap-2">
+              <Activity className="w-4 h-4 text-indigo-400" />
+              {viewMode === 'PROBABILISTIC'
+                ? "Monte Carlo Probabilistic Payday Projection (2,000 Paths)"
+                : "Deterministic Daily Balance Trajectory"}
+            </h3>
             <p className="text-xs text-slate-400 mt-0.5">
-              Simulated day-by-day balance including scheduled recurring debits, salary credits, and estimated discretionary burn
+              {viewMode === 'PROBABILISTIC'
+                ? "Showing 80% confidence interval [p10, p90] with median p50 path, bootstrapped by weekday and recurring jitter"
+                : "Simulated day-by-day balance including scheduled recurring debits, salary credits, and estimated discretionary burn"}
             </p>
           </div>
 
           <button
             onClick={() => setWhyModal({
               open: true,
-              title: 'Cash-Flow Prediction Methodology',
-              content: `This projection calculates daily ending balances by taking your current balance (${formatINR(starting_balance)}), adding expected salary credits on historical paydays, deducting recurring scheduled obligations (EMIs, rent, subscriptions), and applying your trailing 60-day average daily discretionary spending rate (${formatINR(assumptions.daily_discretionary_burn)}/day).`
+              title: viewMode === 'PROBABILISTIC' ? 'Probabilistic Monte Carlo Methodology' : 'Deterministic Projection Methodology',
+              content: viewMode === 'PROBABILISTIC'
+                ? (probabilistic?.methodology || 'Simulates 2,000 paths bootstrapping discretionary expenses by day-of-week and applying +/-2 day jitter to recurring payment dates.')
+                : `Calculates daily ending balances starting from ${formatINR(starting_balance)}, deducting recurring obligations and average daily discretionary burn (${formatINR(assumptions.daily_discretionary_burn)}/day).`
             })}
             className="text-xs text-indigo-400 hover:text-indigo-300 flex items-center gap-1 font-medium"
           >
             <HelpCircle className="w-3.5 h-3.5" />
-            Why am I seeing this?
+            Methodology & Assumptions
           </button>
         </div>
 
         <div className="h-80 w-full pt-4">
           <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={daily_projection} margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
-              <defs>
-                <linearGradient id="balanceGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#6366f1" stopOpacity={0.4} />
-                  <stop offset="95%" stopColor="#6366f1" stopOpacity={0.0} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-              <XAxis dataKey="date" stroke="#64748b" tick={{ fontSize: 11 }} />
-              <YAxis stroke="#64748b" tick={{ fontSize: 11 }} tickFormatter={(v) => `₹${v/1000}k`} />
-              <Tooltip
-                contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '12px' }}
-                formatter={(val, name) => [formatINR(val), "Projected Balance"]}
-                labelFormatter={(lbl) => `Date: ${lbl}`}
-              />
-              <ReferenceLine y={3000} stroke="#ef4444" strokeDasharray="3 3" label={{ value: "Safety Floor (₹3,000)", fill: "#f87171", fontSize: 10, position: "insideBottomRight" }} />
-              <ReferenceLine y={0} stroke="#dc2626" strokeWidth={1.5} />
-              <Area
-                type="monotone"
-                dataKey="projected_balance"
-                stroke="#6366f1"
-                strokeWidth={3}
-                fillOpacity={1}
-                fill="url(#balanceGrad)"
-              />
-            </AreaChart>
+            {viewMode === 'PROBABILISTIC' && probDistribution.length > 0 ? (
+              <AreaChart data={probDistribution} margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="p50Grad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#6366f1" stopOpacity={0.4} />
+                    <stop offset="95%" stopColor="#6366f1" stopOpacity={0.0} />
+                  </linearGradient>
+                  <linearGradient id="fanGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#818cf8" stopOpacity={0.2} />
+                    <stop offset="95%" stopColor="#818cf8" stopOpacity={0.05} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+                <XAxis dataKey="date" stroke="#64748b" tick={{ fontSize: 11 }} />
+                <YAxis stroke="#64748b" tick={{ fontSize: 11 }} tickFormatter={(v) => `₹${v/1000}k`} />
+                <Tooltip
+                  contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '12px' }}
+                  formatter={(val, name) => [formatINR(val), name]}
+                  labelFormatter={(lbl) => `Date: ${lbl}`}
+                />
+                <ReferenceLine y={3000} stroke="#f59e0b" strokeDasharray="3 3" label={{ value: "Safety Floor (₹3,000)", fill: "#f59e0b", fontSize: 10, position: "insideBottomRight" }} />
+                <ReferenceLine y={0} stroke="#ef4444" strokeWidth={1.5} label={{ value: "Zero (Shortage)", fill: "#ef4444", fontSize: 10, position: "insideTopRight" }} />
+                
+                {/* p90 Upper optimistic band */}
+                <Area
+                  type="monotone"
+                  dataKey="p90"
+                  name="Optimistic (p90)"
+                  stroke="#a5b4fc"
+                  strokeDasharray="2 2"
+                  strokeWidth={1.5}
+                  fillOpacity={1}
+                  fill="url(#fanGrad)"
+                />
+
+                {/* p50 Median trajectory */}
+                <Area
+                  type="monotone"
+                  dataKey="p50"
+                  name="Median Path (p50)"
+                  stroke="#6366f1"
+                  strokeWidth={3}
+                  fillOpacity={1}
+                  fill="url(#p50Grad)"
+                />
+
+                {/* p10 Conservative lower envelope */}
+                <Area
+                  type="monotone"
+                  dataKey="p10"
+                  name="Conservative Floor (p10)"
+                  stroke="#f43f5e"
+                  strokeWidth={1.5}
+                  fillOpacity={0}
+                />
+              </AreaChart>
+            ) : (
+              <AreaChart data={daily_projection} margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="balanceGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#6366f1" stopOpacity={0.4} />
+                    <stop offset="95%" stopColor="#6366f1" stopOpacity={0.0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+                <XAxis dataKey="date" stroke="#64748b" tick={{ fontSize: 11 }} />
+                <YAxis stroke="#64748b" tick={{ fontSize: 11 }} tickFormatter={(v) => `₹${v/1000}k`} />
+                <Tooltip
+                  contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '12px' }}
+                  formatter={(val, name) => [formatINR(val), "Projected Balance"]}
+                  labelFormatter={(lbl) => `Date: ${lbl}`}
+                />
+                <ReferenceLine y={3000} stroke="#ef4444" strokeDasharray="3 3" label={{ value: "Safety Floor (₹3,000)", fill: "#f87171", fontSize: 10, position: "insideBottomRight" }} />
+                <ReferenceLine y={0} stroke="#dc2626" strokeWidth={1.5} />
+                <Area
+                  type="monotone"
+                  dataKey="projected_balance"
+                  name="Projected Balance"
+                  stroke="#6366f1"
+                  strokeWidth={3}
+                  fillOpacity={1}
+                  fill="url(#balanceGrad)"
+                />
+              </AreaChart>
+            )}
           </ResponsiveContainer>
         </div>
       </div>

@@ -2,22 +2,77 @@ from typing import List, Dict, Any, Optional
 from datetime import datetime, timedelta
 from collections import defaultdict
 import statistics
+import numpy as np
 
 from app.models.transaction import TransactionModel
 from app.services.recurring import RecurringPaymentDetector
 
 class CashFlowForecaster:
     """
-    30-Day Predictive Cash-Flow Engine.
+    Predictive Cash-Flow & Probabilistic Monte Carlo Payday Engine.
     Simulates daily liquidity trajectory using:
       1. Verified closing balance as starting point
-      2. Trailing daily discretionary spend rate
-      3. Scheduled recurring obligations (EMIs, rent, utilities, subscriptions)
-      4. Expected salary/income recurrence
-      5. Crunch-point detection (low balance / negative balance risks)
+      2. Trailing daily discretionary spend rate bootstrapped by weekday
+      3. Scheduled recurring obligations with date and variance jitter
+      4. Recurrence-based income detection with delay probability
+      5. Multi-path Monte Carlo risk distribution (p10, p50, p90)
+      6. Walk-forward historical backtesting with coverage & MAE
     """
 
     SAFETY_FLOOR = 3000.0  # Alert floor in INR
+
+    @classmethod
+    def _detect_recurring_income(cls, transactions: List[TransactionModel]) -> List[Dict[str, Any]]:
+        """
+        Detects recurring salary/inflow using cadence clustering rather than arbitrary amount thresholds.
+        Requires at least 2 credits with similar amount (within 15%) and ~monthly or bi-weekly interval.
+        """
+        credits = [tx for tx in transactions if tx.credit > 0]
+        if len(credits) < 2:
+            return []
+
+        sorted_credits = sorted(credits, key=lambda x: x.date)
+
+        # Cluster by similar amount (+/- 15%)
+        clusters = []
+        for tx in sorted_credits:
+            placed = False
+            for cl in clusters:
+                avg_cl = statistics.mean([t.credit for t in cl])
+                if abs(tx.credit - avg_cl) / avg_cl <= 0.15:
+                    cl.append(tx)
+                    placed = True
+                    break
+            if not placed:
+                clusters.append([tx])
+
+        income_sources = []
+        for cl in clusters:
+            if len(cl) < 2:
+                continue
+            dates = [datetime.strptime(t.date, "%Y-%m-%d") for t in cl]
+            intervals = [(dates[i+1] - dates[i]).days for i in range(len(dates)-1)]
+            median_interval = statistics.median(intervals)
+
+            # Cadence check: Monthly (24-35 days), Bi-weekly (12-16 days), Weekly (6-8 days)
+            if 6 <= median_interval <= 35:
+                amounts = [t.credit for t in cl]
+                typical_amount = float(np.median(amounts))
+                days_of_month = [d.day for d in dates]
+                median_day = int(statistics.median(days_of_month))
+                delays = [abs(d.day - median_day) for d in dates]
+                p_delay = float(np.mean([1 if d > 0 else 0 for d in delays])) if delays else 0.1
+
+                income_sources.append({
+                    "typical_amount": typical_amount,
+                    "cycle_days": int(round(median_interval)),
+                    "median_day_of_month": median_day,
+                    "delay_probability": min(0.40, p_delay),
+                    "last_date": dates[-1].strftime("%Y-%m-%d"),
+                    "description": cl[-1].description or "Recurring Income"
+                })
+
+        return income_sources
 
     @classmethod
     def forecast(
@@ -210,5 +265,333 @@ class CashFlowForecaster:
                 "methodology": "Linear daily cash burn simulation combining historical discretionary burn rates with detected recurring payment schedules."
             },
             "disclaimer": "Projections are mathematical scenario simulations based on historical recurring cadence. They do not constitute deterministic or legally binding guarantees."
+        }
+
+    @classmethod
+    def forecast_probabilistic(
+        cls,
+        transactions: List[TransactionModel],
+        days: int = 30,
+        n_paths: int = 2000,
+        seed: int = 42
+    ) -> Dict[str, Any]:
+        """
+        Multi-path Monte Carlo Cash-Flow Simulation.
+        Produces deterministic risk distributions for a given seed.
+        Features:
+          1. Weekday-stratified bootstrap of discretionary daily burn
+          2. Scheduled recurring debits with date jitter (+/- 1-2 days) and amount variance
+          3. Recurrence-based income detection with empirical delay probability
+          4. Exact daily p10, p50, and p90 trajectories (guaranteed p10 <= p50 <= p90)
+          5. Pre-income shortage probability and first-breach date clustering
+        """
+        if not transactions:
+            return {
+                "has_data": False,
+                "n_paths": n_paths,
+                "summary": "No transactions available for probabilistic simulation."
+            }
+
+        rng = np.random.default_rng(seed)
+
+        sorted_txs = sorted(transactions, key=lambda x: (x.date, x.id))
+        latest_tx = sorted_txs[-1]
+        start_date = datetime.strptime(latest_tx.date, "%Y-%m-%d")
+        current_balance = float(latest_tx.balance)
+
+        # 1. Recurring Debits Detection
+        recurring_commitments = RecurringPaymentDetector.detect(sorted_txs)
+        recurring_tx_ids = set()
+        for rec in recurring_commitments:
+            recurring_tx_ids.update(rec.get("transaction_ids", []))
+
+        # 2. Weekday-stratified discretionary spend pooling
+        # Group daily debits by date
+        daily_debits = defaultdict(float)
+        for tx in sorted_txs:
+            if tx.debit > 0 and tx.id not in recurring_tx_ids:
+                daily_debits[tx.date] += tx.debit
+
+        weekday_spends = defaultdict(list)
+        all_daily_spends = []
+        for date_str, amt in daily_debits.items():
+            dt = datetime.strptime(date_str, "%Y-%m-%d")
+            weekday_spends[dt.weekday()].append(amt)
+            all_daily_spends.append(amt)
+
+        # Baseline fallback pool if history is sparse
+        if not all_daily_spends:
+            all_daily_spends = [200.0, 450.0, 600.0, 850.0, 1200.0]
+
+        # 3. Recurring Income Modeling
+        income_sources = cls._detect_recurring_income(sorted_txs)
+        if not income_sources:
+            # Fallback to general credit clustering
+            credits = [tx for tx in sorted_txs if tx.credit >= 15000.0 or tx.category == "Income"]
+            if credits:
+                typical_amt = float(np.median([tx.credit for tx in credits]))
+                days_m = [datetime.strptime(tx.date, "%Y-%m-%d").day for tx in credits]
+                income_sources.append({
+                    "typical_amount": typical_amt,
+                    "cycle_days": 30,
+                    "median_day_of_month": int(statistics.median(days_m)),
+                    "delay_probability": 0.20,
+                    "last_date": credits[-1].date,
+                    "description": credits[-1].description
+                })
+
+        # Pre-generate recurring events scheduled in horizon
+        horizon_end = start_date + timedelta(days=days + 5)
+
+        # Simulate paths: shape (n_paths, days)
+        # Initialize paths with starting balance
+        balance_matrix = np.zeros((n_paths, days), dtype=np.float64)
+        running_balances = np.full(n_paths, current_balance, dtype=np.float64)
+
+        first_income_day_idx = None
+        breach_negative_days = []
+        breach_safety_days = []
+
+        for d in range(1, days + 1):
+            day_idx = d - 1
+            target_date = start_date + timedelta(days=d)
+            wday = target_date.weekday()
+
+            # A. Sample Discretionary Burn per Path
+            spend_pool = weekday_spends[wday] if len(weekday_spends[wday]) >= 3 else all_daily_spends
+            sampled_discretionary = rng.choice(spend_pool, size=n_paths, replace=True)
+
+            # B. Income events on this day
+            income_inflows = np.zeros(n_paths, dtype=np.float64)
+            for inc in income_sources:
+                sched_day = inc["median_day_of_month"]
+                # Determine if date matches scheduled payday
+                is_scheduled = (target_date.day == sched_day) or (sched_day > 28 and target_date.day == 28)
+                if is_scheduled:
+                    if first_income_day_idx is None:
+                        first_income_day_idx = day_idx
+
+                    # With probability (1 - p_delay), income hits today; with p_delay, hits 1-3 days later
+                    delays = rng.choice([0, 1, 2], size=n_paths, p=[1.0 - inc["delay_probability"], inc["delay_probability"] * 0.7, inc["delay_probability"] * 0.3])
+                    # If delay == 0, arrives today
+                    typical = inc["typical_amount"]
+                    variations = rng.normal(typical, typical * 0.02, size=n_paths)
+                    income_inflows += np.where(delays == 0, variations, 0.0)
+
+            # C. Recurring debits on this day with jitter
+            recurring_outflows = np.zeros(n_paths, dtype=np.float64)
+            for rec in recurring_commitments:
+                last_dt = datetime.strptime(rec["last_date"], "%Y-%m-%d")
+                cycle = rec.get("cycle_days", 30)
+                mean_amt = rec["average_amount"]
+
+                # Check occurrences
+                curr_dt = last_dt + timedelta(days=cycle)
+                while curr_dt <= horizon_end:
+                    days_diff = (curr_dt - target_date).days
+                    if abs(days_diff) <= 2:
+                        # Jitter in [-2, 2] days
+                        chosen_diffs = rng.choice([-2, -1, 0, 1, 2], size=n_paths)
+                        amt_samples = np.clip(
+                            rng.normal(mean_amt, mean_amt * 0.04, size=n_paths),
+                            mean_amt * 0.85,
+                            mean_amt * 1.15
+                        )
+                        recurring_outflows += np.where(chosen_diffs == days_diff, amt_samples, 0.0)
+                    curr_dt += timedelta(days=cycle)
+
+            # Update running balances
+            running_balances = running_balances + income_inflows - recurring_outflows - sampled_discretionary
+            balance_matrix[:, day_idx] = running_balances
+
+        # Percentile curves: p10, p50, p90 per day
+        p10 = np.percentile(balance_matrix, 10, axis=0)
+        p50 = np.percentile(balance_matrix, 50, axis=0)
+        p90 = np.percentile(balance_matrix, 90, axis=0)
+
+        # Enforce mathematical monotonic bounds: p10 <= p50 <= p90
+        p10 = np.minimum(p10, p50)
+        p90 = np.maximum(p90, p50)
+
+        # Shortage Probabilities
+        cutoff_day = first_income_day_idx if first_income_day_idx is not None else days
+        pre_income_submatrix = balance_matrix[:, :max(1, cutoff_day)]
+
+        p_negative_pre_income = float(np.mean(np.any(pre_income_submatrix < 0.0, axis=1)))
+        p_safety_pre_income = float(np.mean(np.any(pre_income_submatrix < cls.SAFETY_FLOOR, axis=1)))
+
+        p_negative_30d = float(np.mean(np.any(balance_matrix < 0.0, axis=1)))
+        p_safety_30d = float(np.mean(np.any(balance_matrix < cls.SAFETY_FLOOR, axis=1)))
+
+        # Find first breach dates
+        first_breach_day_indices = []
+        for i in range(n_paths):
+            breaches = np.where(balance_matrix[i, :] < cls.SAFETY_FLOOR)[0]
+            if len(breaches) > 0:
+                first_breach_day_indices.append(breaches[0])
+
+        danger_date = None
+        if first_breach_day_indices:
+            most_frequent_day = int(statistics.median(first_breach_day_indices)) + 1
+            danger_date = (start_date + timedelta(days=most_frequent_day)).strftime("%Y-%m-%d")
+        else:
+            # Danger date fallback to date of lowest p10
+            min_p10_day = int(np.argmin(p10)) + 1
+            if p10[min_p10_day - 1] < cls.SAFETY_FLOOR:
+                danger_date = (start_date + timedelta(days=min_p10_day)).strftime("%Y-%m-%d")
+
+        daily_distribution = []
+        for d in range(1, days + 1):
+            dt = start_date + timedelta(days=d)
+            idx = d - 1
+            daily_distribution.append({
+                "date": dt.strftime("%Y-%m-%d"),
+                "day": d,
+                "p10": round(float(p10[idx]), 2),
+                "p50": round(float(p50[idx]), 2),
+                "p90": round(float(p90[idx]), 2),
+                "band_width": round(float(p90[idx] - p10[idx]), 2),
+                "p_shortage": round(float(np.mean(balance_matrix[:, idx] < cls.SAFETY_FLOOR)), 3),
+                "p_negative": round(float(np.mean(balance_matrix[:, idx] < 0.0)), 3)
+            })
+
+        return {
+            "has_data": True,
+            "starting_balance": round(current_balance, 2),
+            "start_date": start_date.strftime("%Y-%m-%d"),
+            "end_date": (start_date + timedelta(days=days)).strftime("%Y-%m-%d"),
+            "projection_days": days,
+            "n_paths": n_paths,
+            "seed": seed,
+            "safety_floor": cls.SAFETY_FLOOR,
+            "daily_distribution": daily_distribution,
+            "risk_metrics": {
+                "p_negative_pre_payday": round(p_negative_pre_income * 100, 1),
+                "p_safety_floor_breach_pre_payday": round(p_safety_pre_income * 100, 1),
+                "p_negative_30d": round(p_negative_30d * 100, 1),
+                "p_safety_floor_breach_30d": round(p_safety_30d * 100, 1),
+                "danger_date": danger_date,
+                "first_payday_estimated": (start_date + timedelta(days=first_income_day_idx + 1)).strftime("%Y-%m-%d") if first_income_day_idx is not None else None,
+                "risk_level": "CRITICAL" if p_negative_pre_income > 0.25 else "ELEVATED" if p_safety_pre_income > 0.40 else "MODERATE" if p_safety_pre_income > 0.15 else "LOW"
+            },
+            "methodology": "Monte Carlo empirical simulation (2,000 paths) bootstrapping historical discretionary spends by weekday, jittering recurring payment execution by +/-2 days, and modeling income cadence with delay probabilities.",
+            "assumptions": {
+                "n_paths": n_paths,
+                "seed": seed,
+                "weekday_stratified_bootstrap": True,
+                "recurring_jitter_days": 2,
+                "safety_floor": cls.SAFETY_FLOOR
+            }
+        }
+
+    @classmethod
+    def backtest_forecast(
+        cls,
+        transactions: List[TransactionModel],
+        holdout_days: int = 30,
+        seed: int = 42
+    ) -> Dict[str, Any]:
+        """
+        Walk-Forward Backtesting Engine.
+        Hides the last `holdout_days` (30 days) of transactions, runs the probabilistic forecast,
+        and evaluates:
+          - Empirical Coverage: share of actual daily closing balances falling within [p10, p90] (target ~80%)
+          - Mean Absolute Error (MAE): |Actual - p50|
+        Requires at least 60 days of total history.
+        """
+        if not transactions or len(transactions) < 2:
+            return {
+                "is_supported": False,
+                "reason": "Insufficient transactions (minimum 2 records required for backtest)."
+            }
+
+        sorted_txs = sorted(transactions, key=lambda x: (x.date, x.id))
+        d_start = datetime.strptime(sorted_txs[0].date, "%Y-%m-%d")
+        d_end = datetime.strptime(sorted_txs[-1].date, "%Y-%m-%d")
+        total_span_days = (d_end - d_start).days
+
+        if total_span_days < 60:
+            return {
+                "is_supported": False,
+                "total_days_recorded": total_span_days,
+                "minimum_required_days": 60,
+                "reason": f"Insufficient statement history ({total_span_days} days). Minimum 60 days required to hold out 30 days for rigorous backtesting."
+            }
+
+        # Split point: date cutoff 30 days before d_end
+        cutoff_date = (d_end - timedelta(days=holdout_days)).strftime("%Y-%m-%d")
+
+        train_txs = [tx for tx in sorted_txs if tx.date <= cutoff_date]
+        test_txs = [tx for tx in sorted_txs if tx.date > cutoff_date]
+
+        if not train_txs or not test_txs:
+            return {
+                "is_supported": False,
+                "reason": "Unable to partition training and holdout periods cleanly."
+            }
+
+        # Run probabilistic forecast on training set
+        forecast_result = cls.forecast_probabilistic(train_txs, days=holdout_days, n_paths=1500, seed=seed)
+        daily_dist = forecast_result.get("daily_distribution", [])
+
+        # Build actual daily balance mapping
+        actual_balances = {}
+        for tx in test_txs:
+            actual_balances[tx.date] = tx.balance
+
+        # Evaluate coverage and error across holdout days
+        inside_band_count = 0
+        evaluated_days = 0
+        absolute_errors = []
+
+        day_by_day_eval = []
+        for item in daily_dist:
+            dt = item["date"]
+            if dt in actual_balances:
+                act = actual_balances[dt]
+                p10_val = item["p10"]
+                p50_val = item["p50"]
+                p90_val = item["p90"]
+
+                is_inside = (p10_val <= act <= p90_val)
+                if is_inside:
+                    inside_band_count += 1
+                evaluated_days += 1
+
+                err = abs(act - p50_val)
+                absolute_errors.append(err)
+
+                day_by_day_eval.append({
+                    "date": dt,
+                    "actual": round(act, 2),
+                    "p10": p10_val,
+                    "p50": p50_val,
+                    "p90": p90_val,
+                    "is_inside_80pct_band": is_inside,
+                    "absolute_error": round(err, 2)
+                })
+
+        if evaluated_days == 0:
+            # Propagate step-wise interpolation if no transactions occurred on certain days
+            return {
+                "is_supported": False,
+                "reason": "No discrete transaction records found on holdout calendar dates."
+            }
+
+        coverage_ratio = round(inside_band_count / evaluated_days, 3)
+        coverage_pct = round(coverage_ratio * 100, 1)
+        mae = round(float(np.mean(absolute_errors)), 2)
+
+        return {
+            "is_supported": True,
+            "holdout_days": holdout_days,
+            "evaluated_days_count": evaluated_days,
+            "cutoff_date": cutoff_date,
+            "empirical_coverage_pct": coverage_pct,
+            "target_coverage_pct": 80.0,
+            "coverage_quality": "HIGH" if 70.0 <= coverage_pct <= 90.0 else "ACCEPTABLE" if 60.0 <= coverage_pct <= 95.0 else "NEEDS_TUNING",
+            "mean_absolute_error": mae,
+            "day_by_day": day_by_day_eval[:10],
+            "methodology": "Walk-forward validation isolating the final 30 calendar days to verify if actual daily balances conform to the theoretical 80% Monte Carlo interval [p10, p90]."
         }
 

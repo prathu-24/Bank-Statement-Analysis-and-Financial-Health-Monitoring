@@ -110,3 +110,4 @@ def get_figure_evidence(
             "source_integrity": "Matches verbatim line items from uploaded bank statement."
         }
     }
+

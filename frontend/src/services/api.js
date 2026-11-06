@@ -87,6 +87,16 @@ export const statementApi = {
     return response.data;
   },
 
+  getProbabilisticForecast: async (days = 30, nPaths = 2000, seed = 42) => {
+    const response = await api.get('/forecast/probabilistic', { params: { days, n_paths: nPaths, seed } });
+    return response.data;
+  },
+
+  getForecastBacktest: async (holdoutDays = 30, seed = 42) => {
+    const response = await api.get('/forecast/backtest', { params: { holdout_days: holdoutDays, seed } });
+    return response.data;
+  },
+
   getInsights: async () => {
     const response = await api.get('/insights');
     return response.data;

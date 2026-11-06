@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.database import init_db
-from app.routes import upload, transactions, dashboard, recurring, anomalies, health, forecast, insights, privacy, evidence, leakage, query
+from app.routes import upload, transactions, dashboard, recurring, anomalies, health, forecast, insights, privacy, evidence, leakage, query, auth
 
 app = FastAPI(
     title="FinSight API",
@@ -43,6 +43,7 @@ app.include_router(privacy.router)
 app.include_router(evidence.router)
 app.include_router(leakage.router)
 app.include_router(query.router)
+app.include_router(auth.router)
 
 if __name__ == "__main__":
     import uvicorn

@@ -136,6 +136,11 @@ export const statementApi = {
     const response = await api.post('/query/ask', { question });
     return response.data;
   },
+
+  login: async (email, password) => {
+    const response = await api.post('/auth/login', { email, password });
+    return response.data;
+  },
 };
 
 export default api;

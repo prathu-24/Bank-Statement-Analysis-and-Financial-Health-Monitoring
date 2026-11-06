@@ -9,19 +9,22 @@ CATEGORY_RULES: Dict[str, List[str]] = {
     "Income": [
         r'\bsalary\b', r'\bpayroll\b', r'\bstipend\b', r'\bdividend\b',
         r'\binterest\s+cr\b', r'\bint\.pd\b', r'\bcashback\b', r'\brefund\b',
-        r'\bach\s+cr\b', r'\bcredit\s+interest\b'
+        r'\bach\s+cr\b', r'\bcredit\s+interest\b', r'\bpayout\b', r'\bdisbursement\b',
+        r'\ballowance\b'
     ],
     "Food & Dining": [
         r'\bswiggy\b', r'\bzomato\b', r'\bblinkit\b', r'\bzepto\b', r'\binstamart\b',
         r'\bmcdonald\b', r'\bstarbucks\b', r'\bkfc\b', r'\bdomino\b', r'\bpizza\b',
         r'\bburger\b', r'\brestaurant\b', r'\bcafe\b', r'\bdhaba\b', r'\bbiryani\b',
-        r'\beatclub\b', r'\bfaasos\b', r'\bbehrouz\b', r'\bchai\s+point\b'
+        r'\beatclub\b', r'\bfaasos\b', r'\bbehrouz\b', r'\bchai\s+point\b',
+        r'\bcanteen\b', r'\bchai\b'
     ],
     "Transport": [
         r'\buber\b', r'\bola\b', r'\brapido\b', r'\bmetro\b', r'\bpetrol\b',
         r'\bfuel\b', r'\bhpcl\b', r'\bbpcl\b', r'\biocl\b', r'\bshell\b',
         r'\bfastag\b', r'\bauto\b', r'\btoll\b', r'\birctc\b', r'\bindigo\b',
-        r'\bair\s+india\b', r'\bcleartrip\b', r'\bmakemytrip\b'
+        r'\bair\s+india\b', r'\bcleartrip\b', r'\bmakemytrip\b', r'\boverhaul\b',
+        r'\brepair\b'
     ],
     "Subscriptions": [
         r'\bnetflix\b', r'\bspotify\b', r'\bamazon\s+prime\b', r'\bprime\s+video\b',

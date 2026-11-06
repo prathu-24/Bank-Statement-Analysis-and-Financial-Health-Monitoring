@@ -1,0 +1,45 @@
+{
+  "persona": "College Student",
+  "opening_balance": 3500.0,
+  "date_range": "2024-01-01 to 2024-06-30",
+  "planted_events": [
+    {
+      "event_type": "duplicate_charge",
+      "date": "2024-03-22",
+      "merchant": "Campus Canteen",
+      "amount": 140.0
+    },
+    {
+      "event_type": "spending_spike",
+      "date": "2024-01-25",
+      "merchant": "Semester Exam Fee",
+      "amount": 9200.0
+    },
+    {
+      "event_type": "forgotten_subscription",
+      "merchant": "Spotify Student",
+      "amount": 59.0,
+      "frequency": "Monthly"
+    },
+    {
+      "event_type": "late_salary",
+      "description": "Late allowance delayed to April 14",
+      "date": "2024-04-14"
+    },
+    {
+      "event_type": "payday_shortfall",
+      "date": "2024-04-11",
+      "trough_balance": 110.0
+    }
+  ],
+  "true_categories": {
+    "UPI/COLLEGE CAMPUS CANTEEN/CHAI": "Food & Dining",
+    "IMPS INFLOW FROM FATHER MONTHLY ALLOWANCE": "Income",
+    "UPI TO PG HOSTEL ROOM OWNER RENT": "Housing & Rent",
+    "SPOTIFY INDIA STUDENT RECURRING": "Subscriptions",
+    "COLLEGE UNIVERSITY SEMESTER EXAM FEE": "Education",
+    "UPI/COLLEGE CAMPUS CANTEEN/SNACKS": "Food & Dining",
+    "URGENT TEXTBOOK PHOTOCOPY XEROX": "Education"
+  },
+  "total_transactions": 122
+}

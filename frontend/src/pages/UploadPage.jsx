@@ -247,6 +247,53 @@ export default function UploadPage() {
                 <p className="text-[10px] text-rose-300/70">Deliberate math errors, invalid dates, duplicates</p>
               </button>
             </div>
+
+            {/* Benchmark Demographic Personas */}
+            <div className="pt-2 border-t border-slate-800">
+              <span className="text-[11px] font-bold text-indigo-400 uppercase block mb-2">
+                Evaluated Demographic Personas (6-Month Benchmarks):
+              </span>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <button
+                  type="button"
+                  disabled={loading}
+                  onClick={() => handleLoadDemo('salaried')}
+                  className="p-3 bg-slate-900 hover:bg-slate-800 border border-slate-700/80 hover:border-indigo-500/50 rounded-xl text-left transition space-y-1 group"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-white group-hover:text-indigo-300">Salaried Pro</span>
+                    <span className="text-[10px] text-indigo-400 uppercase font-semibold">₹85k/mo</span>
+                  </div>
+                  <p className="text-[10px] text-slate-400">Fixed salary, rent, home EMI, Cult.fit, planted jewelry spike</p>
+                </button>
+
+                <button
+                  type="button"
+                  disabled={loading}
+                  onClick={() => handleLoadDemo('gig_worker')}
+                  className="p-3 bg-slate-900 hover:bg-slate-800 border border-slate-700/80 hover:border-indigo-500/50 rounded-xl text-left transition space-y-1 group"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-white group-hover:text-indigo-300">Gig Worker</span>
+                    <span className="text-[10px] text-amber-400 uppercase font-semibold">Irregular</span>
+                  </div>
+                  <p className="text-[10px] text-slate-400">Zomato/Uber payouts, fuel debits, bike loan EMI, engine overhaul</p>
+                </button>
+
+                <button
+                  type="button"
+                  disabled={loading}
+                  onClick={() => handleLoadDemo('student')}
+                  className="p-3 bg-slate-900 hover:bg-slate-800 border border-slate-700/80 hover:border-indigo-500/50 rounded-xl text-left transition space-y-1 group"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-white group-hover:text-indigo-300">College Student</span>
+                    <span className="text-[10px] text-emerald-400 uppercase font-semibold">₹15k allowance</span>
+                  </div>
+                  <p className="text-[10px] text-slate-400">Parental allowance, PG rent, campus canteen UPI, exam fees</p>
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       ) : (

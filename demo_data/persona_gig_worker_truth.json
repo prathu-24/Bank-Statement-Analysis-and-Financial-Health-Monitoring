@@ -1,0 +1,46 @@
+{
+  "persona": "Gig Economy Worker",
+  "opening_balance": 8000.0,
+  "date_range": "2024-01-01 to 2024-06-30",
+  "planted_events": [
+    {
+      "event_type": "duplicate_charge",
+      "date": "2024-02-18",
+      "merchant": "HPCL Petrol",
+      "amount": 450.0
+    },
+    {
+      "event_type": "spending_spike",
+      "date": "2024-05-12",
+      "merchant": "Bike Engine Overhaul",
+      "amount": 16500.0
+    },
+    {
+      "event_type": "forgotten_subscription",
+      "merchant": "Google One",
+      "amount": 219.0,
+      "frequency": "Monthly"
+    },
+    {
+      "event_type": "late_salary",
+      "description": "10-day payout delay in mid-June",
+      "date": "2024-06-20"
+    },
+    {
+      "event_type": "payday_shortfall",
+      "date": "2024-06-25",
+      "trough_balance": 450.0
+    }
+  ],
+  "true_categories": {
+    "UPI/HPCL PETROL PUMP FUEL DEBIT": "Transport",
+    "UBER INDIA SYSTEMS DISBURSEMENT": "Income",
+    "SWIGGY BUNDL TECH WEEKLY INFLOW": "Income",
+    "BAJAJ AUTO FINANCE TWO WHEELER EMI": "Loans & EMI",
+    "ZOMATO MEDIA PVT LTD WEEKLY PAYOUT": "Income",
+    "GOOGLE STORAGE 100GB SUBSCRIPTION": "Subscriptions",
+    "BIKE ENGINE OVERHAUL & TYRE REPAIR": "Transport",
+    "URGENT MEDICAL CLINIC EXPENSE": "Healthcare"
+  },
+  "total_transactions": 125
+}

@@ -185,7 +185,10 @@ async def load_demo_statement(demo_type: str, db: Session = Depends(get_db)):
         "sbi": "sbi_sample.csv",
         "generic": "generic_sample.csv",
         "pdf": "sample_statement.pdf",
-        "broken": "broken_sample.csv"
+        "broken": "broken_sample.csv",
+        "salaried": "persona_salaried.csv",
+        "gig_worker": "persona_gig_worker.csv",
+        "student": "persona_student.csv"
     }
 
     if demo_type.lower() not in filename_map:

@@ -20,7 +20,7 @@ class RecurringPaymentDetector:
     @classmethod
     def detect(cls, transactions: List[TransactionModel]) -> List[Dict[str, Any]]:
         # Consider only debits
-        debits = [tx for tx in transactions if tx.debit > 0]
+        debits = [tx for tx in transactions if (tx.debit or 0.0) > 0]
         if len(debits) < 2:
             return []
 

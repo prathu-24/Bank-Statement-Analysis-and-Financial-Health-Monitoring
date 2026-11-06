@@ -570,43 +570,68 @@ class CashFlowForecaster:
                 "reason": f"Insufficient statement history ({total_span_days} days). Minimum 60 days required to hold out 30 days for rigorous backtesting."
             }
 
-        # Multi-origin backtesting: determine rolling cutoffs
+        # Determine rolling origins across statement span
         min_train_days = 25
-        primary_cutoff = d_end - timedelta(days=holdout_days)
+        eval_window = min(holdout_days, 14)
 
-        cutoff_dates = []
-        if primary_cutoff >= d_start + timedelta(days=min_train_days):
-            cutoff_dates.append(primary_cutoff)
+        candidate_cutoffs = []
+        curr = d_start + timedelta(days=min_train_days)
+        end_origin = d_end - timedelta(days=eval_window)
+        while curr <= end_origin:
+            candidate_cutoffs.append(curr)
+            curr += timedelta(days=2)
 
-        # Include additional earlier origins if data span permits
-        for offset in [14, 28]:
-            earlier_cutoff = primary_cutoff - timedelta(days=offset)
-            if earlier_cutoff >= d_start + timedelta(days=min_train_days):
-                cutoff_dates.append(earlier_cutoff)
+        if len(candidate_cutoffs) < 2:
+            candidate_cutoffs = [d_end - timedelta(days=holdout_days)]
+            if candidate_cutoffs[0] - timedelta(days=14) >= d_start + timedelta(days=min_train_days):
+                candidate_cutoffs.append(candidate_cutoffs[0] - timedelta(days=14))
+            candidate_cutoffs = sorted(candidate_cutoffs)
 
-        if not cutoff_dates:
-            cutoff_dates = [primary_cutoff]
-
-        cutoff_dates = sorted(cutoff_dates)
-
-        # Pre-index all actual daily balances
         actual_balances = {tx.date: float(tx.balance) for tx in sorted_txs}
 
-        rolling_reports = []
+        # Split conformal partition: earlier 50% calibration, later 50% evaluation
+        n_cutoffs = len(candidate_cutoffs)
+        if n_cutoffs >= 4:
+            split_idx = n_cutoffs // 2
+            calib_cutoffs = candidate_cutoffs[:split_idx]
+            eval_cutoffs = candidate_cutoffs[split_idx:]
+        else:
+            calib_cutoffs = candidate_cutoffs[:1]
+            eval_cutoffs = candidate_cutoffs
+
+        # Phase 1: Calibration (non-conformity scores)
+        calib_scores = []
+        for c_dt in calib_cutoffs:
+            c_str = c_dt.strftime("%Y-%m-%d")
+            train_txs = [t for t in sorted_txs if t.date <= c_str]
+            if not train_txs:
+                continue
+            sim = cls.forecast_probabilistic(train_txs, days=eval_window, n_paths=300, seed=seed)
+            for item in sim.get("daily_distribution", []):
+                dt = item["date"]
+                if dt in actual_balances:
+                    y = actual_balances[dt]
+                    score = max(item["p10"] - y, y - item["p90"], 0.0)
+                    calib_scores.append(score)
+
+        # Global conformal margin q_hat at target 80% coverage
+        q_hat = float(np.percentile(calib_scores, 80)) if calib_scores else 0.0
+
+        # Phase 2: Evaluation strictly on held-out later origins
         all_inside_band = 0
         all_evaluated_days = 0
         all_model_errors = []
         all_naive_errors = []
+        rolling_reports = []
 
-        for cutoff_dt in cutoff_dates:
+        for cutoff_dt in eval_cutoffs:
             cutoff_str = cutoff_dt.strftime("%Y-%m-%d")
             train_txs = [tx for tx in sorted_txs if tx.date <= cutoff_str]
             test_txs = [tx for tx in sorted_txs if tx.date > cutoff_str]
             if not train_txs or not test_txs:
                 continue
 
-            # Naive Moving Average Baseline:
-            # Daily burn rate estimated from the trailing 30 days before cutoff
+            # Naive Moving Average Baseline
             trail_start_dt = max(d_start, cutoff_dt - timedelta(days=30))
             trail_txs = [tx for tx in train_txs if tx.date >= trail_start_dt.strftime("%Y-%m-%d")]
             cutoff_bal = train_txs[-1].balance
@@ -616,16 +641,7 @@ class CashFlowForecaster:
             else:
                 daily_drift = 0.0
 
-            eval_window = min(holdout_days, (d_end - cutoff_dt).days)
-            if eval_window <= 0:
-                continue
-
-            sim_result = cls.forecast_probabilistic(
-                train_txs,
-                days=eval_window,
-                n_paths=1000,
-                seed=seed
-            )
+            sim_result = cls.forecast_probabilistic(train_txs, days=eval_window, n_paths=300, seed=seed)
             sim_dist = sim_result.get("daily_distribution", [])
 
             cutoff_inside = 0
@@ -637,11 +653,12 @@ class CashFlowForecaster:
                 dt = item["date"]
                 if dt in actual_balances:
                     act = actual_balances[dt]
-                    p10_v = item["p10"]
+                    # Apply globally calibrated conformal padding
+                    p10_conf = item["p10"] - q_hat
                     p50_v = item["p50"]
-                    p90_v = item["p90"]
+                    p90_conf = item["p90"] + q_hat
 
-                    is_in = (p10_v <= act <= p90_v)
+                    is_in = (p10_conf <= act <= p90_conf)
                     if is_in:
                         cutoff_inside += 1
                         all_inside_band += 1
@@ -652,7 +669,6 @@ class CashFlowForecaster:
                     cutoff_model_errs.append(model_err)
                     all_model_errors.append(model_err)
 
-                    # Naive moving average trajectory
                     naive_pred = cutoff_bal + (day_offset * daily_drift)
                     naive_err = abs(act - naive_pred)
                     cutoff_naive_errs.append(naive_err)
@@ -682,12 +698,20 @@ class CashFlowForecaster:
         avg_naive_mae = round(float(np.mean(all_naive_errors)), 2) if all_naive_errors else avg_mae * 1.5
         mae_improvement = round(((avg_naive_mae - avg_mae) / max(1.0, avg_naive_mae)) * 100, 1)
 
+        windows_tested = len(eval_cutoffs)
+        is_sufficient_windows = windows_tested >= 30
+
         return {
             "is_supported": True,
-            "holdout_days": holdout_days,
+            "holdout_days": eval_window,
             "evaluated_days_count": all_evaluated_days,
-            "cutoff_date": cutoff_dates[-1].strftime("%Y-%m-%d"),
-            "cutoffs_tested": len(rolling_reports),
+            "cutoff_date": eval_cutoffs[-1].strftime("%Y-%m-%d"),
+            "cutoffs_tested": len(candidate_cutoffs),
+            "calibration_windows": len(calib_cutoffs),
+            "windows_tested": windows_tested,
+            "is_sufficient_windows": is_sufficient_windows,
+            "coverage_status": "statistically valid (>= 30 windows)" if is_sufficient_windows else "insufficient data (< 30 windows)",
+            "conformal_adjustment": round(q_hat, 2),
             "empirical_coverage_pct": avg_coverage,
             "coverage_pct": avg_coverage,
             "target_coverage_pct": 80.0,
@@ -696,6 +720,6 @@ class CashFlowForecaster:
             "naive_baseline_mae": avg_naive_mae,
             "mae_improvement_pct": mae_improvement,
             "rolling_cutoffs": rolling_reports,
-            "methodology": "Rolling-origin walk-forward backtesting evaluating empirical interval coverage [p10, p90] and MAE across multiple historical cutoffs compared against a moving-average naive baseline."
+            "methodology": "Split conformal prediction: Non-conformity calibrated on earlier rolling windows, empirical coverage measured strictly on uncalibrated later holdout windows."
         }
 

@@ -79,8 +79,8 @@ CATEGORY_RULES: Dict[str, List[str]] = {
         r'\bretail\b', r'\bmart\b', r'\bbazaar\b', r'\bsupermarket\b', r'\bgrocery\b'
     ],
     "Transfers": [
-        r'\bupi\b', r'\bimps\b', r'\bneft\b', r'\brtgs\b', r'\bp2p\b', r'\btransfer\b',
-        r'\bself\s+transfer\b'
+        r'\bp2p\b', r'\bself\s+transfer\b', r'\btransfer\s+to\b', r'\bneft\s+to\b',
+        r'\bimps\s+to\b', r'\bfunds?\s+transfer\b', r'\bacc\s+transfer\b', r'\btransfer\b'
     ]
 }
 
@@ -245,7 +245,12 @@ class TransactionCategorizer:
                 if re.search(pattern, desc_lower):
                     return (cat, 0.92)
 
-        # 4. Fallback for unrecognized descriptions
+        # 4. Fallback for unrecognized descriptions: local offline char n-gram ML classifier
+        from app.services.fallback_classifier import FallbackClassifier
+        ml_cat, ml_conf = FallbackClassifier.predict(description)
+        if ml_cat and ml_conf >= 0.25:
+            return (ml_cat, round(ml_conf, 2))
+
         return ("Uncategorized – review", 0.25)
 
     @classmethod

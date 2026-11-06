@@ -18,8 +18,13 @@ dist/
 dist-ssr/
 *.local
 
-# Environment variables
+# Virtual environments
+venv/
+env/
+ENV/
+.venv/
 .env
+.env.*
 .env.local
 
 # Operating System Files

@@ -1,0 +1,5 @@
+# FinSight Test Set SHA-256 Hashes
+# Sealed test sets - never inspect rows or tune against these directly
+
+demo_data/persona_unseen_held_out.csv: a24f25535addf70e532c25c3d2c68ca60b016672752d50d1be765b0390776e0b
+demo_data/fresh_test.csv: PENDING_USER_INPUT (Expected at Step 6)

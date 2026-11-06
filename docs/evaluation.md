@@ -1,56 +1,57 @@
 # FinSight Pipeline Evaluation Report
-*Benchmark Protocol: Automated reproducible ground-truth testing across 3 in-sample demographic personas and 2 out-of-sample held-out datasets.*
+*Benchmark Protocol: Automated reproducible ground-truth testing across decoupled In-Sample, Validation, and Out-of-Sample partitions with 95% bootstrap confidence intervals (B=1,000).*
 
-Date of Evaluation: 2026-11-06 15:36:23 UTC
+Date of Evaluation: 2026-11-06 16:27:51 UTC
 
-## Executive Benchmark Summary
+## Executive Summary & Non-Leakage Architecture
 
-> **Note on Evaluation Methodology:**
-> - Personas 1–3 (*Salaried Professional*, *Gig Economy Worker*, *College Student*) represent in-sample demographic archetypes used during rule definition.
-> - *Held-Out Noisy Benchmark* and *Unseen Held-Out Benchmark* represent authentic out-of-sample benchmarks containing merchant narratives and phrasing not seen during rule tuning.
-> - Monte Carlo forecast coverage is calibrated using full calendar spend pooling (accounting for 0-spend days), lifting empirical coverage from 50.7% baseline to ~77.0%.
+> [!IMPORTANT]
+> **Strict Partition Decoupling:** In compliance with Phase 8 generalization guidelines, in-sample training personas, validation tuning benchmarks, and true out-of-sample test datasets are **strictly separated into independent tables with separate group averages**. In-sample and out-of-sample scores are **never averaged together**.
 
-| Persona | Total Txns | Extraction Acc. | Category Macro-F1 | Anomaly Recall | Anomaly Prec. | 80% Coverage | Warning Lead Time | Ledger Reconciled |
+### Table 1: In-Sample Demographic Personas (Used During Rule Development)
+
+| Benchmark Dataset | Txns | Extraction | Category Macro-F1 (95% CI) | Injected Anomaly Rec. | Injected Anomaly Prec. | 80% Coverage (95% CI) [Windows] | Lead Time | Ledger Reconciliation |
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
-| **Salaried Professional** | 108 | 100.0% | 100.0% | 100.0% | 66.7% | 92.2% | 14 days | PASS (₹0.00 drift) |
-| **Gig Economy Worker** | 125 | 100.0% | 100.0% | 100.0% | 28.6% | 63.6% | 14 days | PASS (₹0.00 drift) |
-| **College Student** | 122 | 100.0% | 100.0% | 100.0% | 14.3% | 100.0% | 14 days | PASS (₹0.00 drift) |
-| **Held-Out Noisy Benchmark** | 55 | 100.0% | 98.3% | 100.0% | 25.0% | 56.2% | 12 days | PASS (₹0.00 drift) |
-| **Unseen Held-Out Benchmark (Out-of-Sample)** | 81 | 100.0% | 63.0% | 100.0% | 66.7% | 72.7% | 12 days | PASS (₹0.00 drift) |
-| **AGGREGATE AVERAGE** | **491** | **100.0%** | **92.3%** | **100.0%** | **40.3%** | **76.9%** | **13.2 days** | **100% VERIFIED** |
+| **Salaried Professional** | 108 | 100.0% | **100.0%** [100.0%, 100.0%] | 100.0% | 66.7% | **88.4%** [83.9%, 92.0%] (n=36) | 14 days | PASS (₹0.00 drift) |
+| **Gig Economy Worker** | 125 | 100.0% | **100.0%** [100.0%, 100.0%] | 100.0% | 28.6% | **75.5%** [70.1%, 80.5%] (n=36) | 14 days | PASS (₹0.00 drift) |
+| **College Student** | 122 | 100.0% | **100.0%** [100.0%, 100.0%] | 100.0% | 14.3% | **92.9%** [89.6%, 95.7%] (n=36) | 14 days | PASS (₹0.00 drift) |
+| **GROUP AVERAGE** | **355** | **100.0%** | **100.0%** | **100.0%** | **36.5%** | **85.6%** (valid only) | - | **100% RECONCILED** |
 
-### Pipeline Performance Comparison (Baseline vs Calibrated)
+### Table 2: Validation Benchmarks (Error Analysis & Hyperparameter Tuning)
 
-| Metric | Phase 1 Baseline | Phase 7 (Calibrated & Verified) | Improvement / Status |
-| :--- | :---: | :---: | :---: |
-| **Category Macro-F1 (Salaried - In-Sample)** | 60.0% | **100.0%** | **+40.0%** |
-| **Category Macro-F1 (Gig Worker - In-Sample)** | 39.6% | **100.0%** | **+60.4%** |
-| **Category Macro-F1 (Student - In-Sample)** | 66.7% | **100.0%** | **+33.3%** |
-| **Category Macro-F1 (Held-Out Noisy - Out-of-Sample)** | N/A | **98.3%** | **Robust Generalization** |
-| **Category Macro-F1 (Unseen Held-Out - Out-of-Sample)** | N/A | **63.0%** | **Untuned Real-World Baseline** |
-| **Aggregate Category Macro-F1** | 55.4% | **92.3%** | **+36.9% Absolute Gain** |
-| **Anomaly Detection Recall** | 100.0% | **100.0%** | **Maintained Zero Missed Anomalies** |
-| **Anomaly Detection Precision** | 12.1% | **40.3%** | **+28.2% Precision (Fewer False Alarms)** |
-| **Forecast 80% Interval Coverage** | ~50.7% | **76.9%** | **Calibrated via Full Calendar Spend Pooling** |
-| **Ledger Reconciliation Rate** | 100% PASS | **100% PASS** | **Strict $\pm ₹1.00$ double-entry maintained** |
+| Benchmark Dataset | Txns | Extraction | Category Macro-F1 (95% CI) | Injected Anomaly Rec. | Injected Anomaly Prec. | 80% Coverage (95% CI) [Windows] | Lead Time | Ledger Reconciliation |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| **Held-Out Noisy Benchmark** | 55 | 100.0% | **98.3%** [92.2%, 100.0%] | 100.0% | 25.0% | **64.4%** [55.1%, 72.9%] (n=28 (!)) | None projected | PASS (₹0.00 drift) |
+| **Unseen Held-Out Benchmark (Out-of-Sample) (DEV Half)** | 40 | 100.0% | **91.1%** [79.6%, 100.0%] | 100.0% | 66.7% | **67.2%** [54.7%, 78.1%] (n=13 (!)) | None projected | PASS (₹0.00 drift) |
+| **GROUP AVERAGE** | **95** | **100.0%** | **94.7%** | **100.0%** | **45.9%** | Insufficient Windows (<30) | - | **100% RECONCILED** |
+
+### Table 3: Sealed Out-of-Sample Test Benchmarks (Zero Hyperparameter Tuning)
+
+| Benchmark Dataset | Txns | Extraction | Category Macro-F1 (95% CI) | Injected Anomaly Rec. | Injected Anomaly Prec. | 80% Coverage (95% CI) [Windows] | Lead Time | Ledger Reconciliation |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| **Unseen Held-Out (TEST Half)** | 41 | *Sealed* | *Evaluated at Step 8.6 Final Run* | - | - | - | - | - |
+| **Fresh Test (User-Provided)** | ~100 | *Awaiting provision* | *Evaluated at Step 8.6 Final Run* | - | - | - | - | - |
+
+*(Note: In accordance with Phase 8 non-negotiable test-set rules, Table 3 remains strictly sealed until the final single evaluation run).*
 
 
-## Accuracy & Calibration Upgrades
+## Injected Anomaly Detection Methodology & Criteria
+- **Synthetic Disturbance Protocol:** All anomaly detection metrics are evaluated against **explicitly injected/planted ground-truth events** (unusual spending spikes, duplicate vendor debits, and abnormal billing surges) embedded in synthetic bank statements. They do not represent uncontrolled production fraud.
+- **Robust Statistical Criteria:**
+  - Evaluates per-category **Median and Median Absolute Deviation (MAD)** rather than Gaussian standard deviations that distort on skewed financial expenditures.
+  - Known recurring liabilities (rent transfers, active loans/EMIs, periodic utilities) are detected and **excluded from anomaly flags** to maintain low false positive rates.
+  - Multi-tier alert severity: `LOW`, `MEDIUM`, `HIGH`, `CRITICAL`.
 
-1. **Direction-Aware UPI & Merchant Engine:**
-   - Inflows from gig platforms (Swiggy, Zomato, Uber, Zepto, Dunzo, Blinkit) are properly recognized as **Income** instead of being misclassified as Food & Dining.
-   - Distinct classification of loan EMI providers (e.g. `Bajaj Auto Finance`) taking precedence over generic transport terms.
-   - Added `Education` category with rules for exam fees, university tuition, course subscriptions, and textbook photocopy outlays.
-   - Added confidence scoring with an explicit `"Uncategorized – review"` fallback.
-2. **Robust Multi-Threshold Anomaly Detection:**
-   - Evaluates per-category **Median and Median Absolute Deviation (MAD)** rather than Gaussian parametric Z-scores that skew on banking distributions.
-   - Automatically detects and **ignores known recurring payments** (monthly rent, EMIs, regular utilities) to eliminate recurring false positives.
-   - Implemented 4-tier severity levels: `LOW`, `MEDIUM`, `HIGH`, `CRITICAL`.
-3. **Authentic Out-of-Sample Benchmarks:**
-   - Evaluated on [`demo_data/persona_held_out_noisy.csv`](../demo_data/persona_held_out_noisy.csv) (55 txns, 98.3% Macro-F1).
-   - Evaluated on [`demo_data/persona_unseen_held_out.csv`](../demo_data/persona_unseen_held_out.csv) (81 txns, completely untuned 63.0% Macro-F1 out-of-sample).
-4. **Monte Carlo Calibration:**
-   - Full calendar day bootstrapping (including zero-spend days) prevents artificial cash depletion, increasing salaried coverage from 62.7% to 92.2% and student coverage to 100.0%.
+## Conformal Forecast Calibration & Horizon Analysis
+- **Split Conformal Prediction:** Evaluates non-conformity residuals on earlier historical windows and assesses empirical coverage strictly on later holdout windows.
+- **Sample Size Threshold:** Datasets with fewer than 30 evaluation windows are flagged as `insufficient data (< 30 windows)` and excluded from average coverage calculations.
+- **Warning Lead Time:** Rather than assuming an arbitrary warning duration, cash shortages are flagged empirically up to the 30-day forecast horizon.
 
-## Hardware-Local Zero-Telemetry Proof
-All evaluation passes completed **100% locally on host hardware** using SQLite in-memory databases, deterministic random seeds (42, 101, 303), and zero network calls.
+## Known Limitations
+1. **Synthetic Data Corpus:** All transactions are generated from deterministic synthetic distributions representing Indian consumer banking patterns (UPI, NEFT, IMPS). They reflect realistic merchant structures but do not capture the full chaotic variance of unfiltered core banking PDF exports.
+2. **Injected Anomalies:** Anomaly precision and recall reflect performance on predefined test-case disturbances, not wild adversarial attacks.
+3. **Observation Sample Constraints:** Statements shorter than 90 days provide limited sliding origins for conformal calibration; intervals are appropriately flagged and widened.
+4. **Single-Annotator Ground Truth:** Ground truth categorizations are defined by rule-based persona generators and reference label dictionaries.
+
+## Hardware-Local Zero-Telemetry Verification
+All evaluation passes completed **100% locally on host hardware** using in-memory SQLite instances, deterministic random seeds (42, 101, 303), and zero network calls.

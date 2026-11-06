@@ -620,6 +620,7 @@ class CashFlowForecaster:
         # Phase 2: Evaluation strictly on held-out later origins
         all_inside_band = 0
         all_evaluated_days = 0
+        all_point_hits = []
         all_model_errors = []
         all_naive_errors = []
         rolling_reports = []
@@ -659,6 +660,7 @@ class CashFlowForecaster:
                     p90_conf = item["p90"] + q_hat
 
                     is_in = (p10_conf <= act <= p90_conf)
+                    all_point_hits.append(is_in)
                     if is_in:
                         cutoff_inside += 1
                         all_inside_band += 1
@@ -714,6 +716,7 @@ class CashFlowForecaster:
             "conformal_adjustment": round(q_hat, 2),
             "empirical_coverage_pct": avg_coverage,
             "coverage_pct": avg_coverage,
+            "eval_point_hits": all_point_hits,
             "target_coverage_pct": 80.0,
             "coverage_quality": "HIGH" if 70.0 <= avg_coverage <= 90.0 else "ACCEPTABLE" if 60.0 <= avg_coverage <= 95.0 else "NEEDS_TUNING",
             "mean_absolute_error": avg_mae,

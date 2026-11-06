@@ -58,3 +58,4 @@ def get_current_user() -> Dict[str, Any]:
         "authenticated": True,
         "default_user": DEMO_USERS["judge@finsight.local"]
     }
+

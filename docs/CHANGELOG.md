@@ -1,14 +1,41 @@
 # FinSight Project Changelog
 
-## Phase Baseline
-- **Pytest**: 59 passed
-- **Evaluate.py**: Extraction 100%, Category Macro-F1 99.6%, Anomaly Recall 100%, Anomaly Precision 33.7%, Interval Coverage 83.3%
+## Phase 1: Baseline Audit
+- **Pytest**: 53 passed
+- **Benchmark Baseline**:
+  - Category Macro-F1 (Salaried): 60.0%
+  - Category Macro-F1 (Gig Worker): 39.6%
+  - Category Macro-F1 (College Student): 66.7%
+  - Aggregate Category Macro-F1: 55.4%
+  - Anomaly Detection Recall: 100.0%
+  - Anomaly Detection Precision: 12.1%
+  - Forecast 80% Interval Coverage: ~50.7% (uncalibrated)
+  - Ledger Balance Drift: ₹0.00 (PASS)
+
+---
+
+## Phase 2: Accuracy & Rule Calibration
+- **Direction-Aware UPI & Merchant Engine**:
+  - Distinguishes credit inflows from gig platforms (Swiggy, Zomato, Uber, Zepto, Dunzo, Blinkit) as `Income` rather than Food & Dining expenses.
+  - Dedicated categorization for loan EMI providers (e.g. `Bajaj Auto Finance`) taking precedence over generic vehicle terms.
+  - Added `Education` category rules for tuition, exams, coaching, xerox photocopies, and certifications.
+  - Added confidence scoring with explicit `"Uncategorized – review"` fallback.
+- **Multi-Threshold Anomaly Detection**:
+  - Implemented category-specific Median and Median Absolute Deviation (MAD) / IQR outlier detection replacing fragile Gaussian assumptions.
+  - Filtered out known recurring commitments (monthly rent, EMIs, broadband) to prevent recurring false alarms.
+  - Added 4-tier alert severity levels: `LOW`, `MEDIUM`, `HIGH`, `CRITICAL`.
+- **Benchmark Gains (Phase 1 Baseline vs Phase 2)**:
+  - Salaried Macro-F1: 60.0% -> **100.0%** (+40.0%)
+  - Gig Worker Macro-F1: 39.6% -> **100.0%** (+60.4%)
+  - Student Macro-F1: 66.7% -> **100.0%** (+33.3%)
+  - Held-out Noisy Macro-F1: **98.3%**
+  - Anomaly Precision: 12.1% -> **33.3%** (over 2.7x reduction in false alarms)
 
 ---
 
 ## Phase 3: Parser Coverage and Robustness
 - **Bank CSV Parsers**: Added dedicated parsers for ICICI Bank, Axis Bank, and Kotak Mahindra Bank statement formats.
-- **Excel Support**: Added `.xlsx` and `.xls` workbook parser (`ExcelParser`) with openpyxl support and automated column detection.
+- **Excel Support**: Added `.xlsx` and `.xls` workbook parser (`ExcelParser`) with `openpyxl` support and automated column detection.
 - **Enhanced PDF Parsing**:
   - Multi-page table extraction with automatic table stitching across pages.
   - Wrapped multi-line description stitching across table row fragments.
@@ -23,7 +50,7 @@
   - Graceful handling of empty (0 bytes) and corrupted files with friendly HTTP 400 responses.
 - **Demo Data & Test Suite**:
   - Added synthetic demo statements: `icici_sample.csv`, `axis_sample.csv`, `kotak_sample.csv`, `sample_statement.xlsx`.
-  - Added unit and fuzz testing in `test_phase3_parsers.py` (all 11 new tests passing, total tests: 70).
+  - Added unit and fuzz testing in `test_phase3_parsers.py` (total tests increased from 59 to 70).
 
 ---
 
@@ -82,6 +109,32 @@
 - **Final Security & Secrets Audit**:
   - Scanned entire repository for credentials, private keys, and real personal data (0 leaked secrets found, all demo data 100% synthetic).
 
+---
 
-
-
+## Phase 7: Honesty, Security, and Cleanup
+- **Evaluation Honesty & Out-of-Sample Benchmark**:
+  - Removed misleading footnotes and synced `README.md` benchmark table to mirror `scripts/evaluate.py` programmatically.
+  - Resolved 33.7% vs 33.3% precision discrepancy by generating comparisons directly from evaluation arrays.
+  - Created a brand-new held-out dataset (`demo_data/persona_unseen_held_out.csv` with 81 realistic Indian transactions) containing narratives unseen during rule tuning. Reported true out-of-sample Category Macro-F1 (63.0%) without circular tuning.
+  - Added explicit notes delineating in-sample demographic archetypes from out-of-sample held-out datasets.
+- **Monte Carlo Interval Calibration**:
+  - Resolved the 62.7% / 70.5% / 18.8% interval undercoverage issue by implementing full calendar spend pooling (including 0-spend days).
+  - Prevented artificial cash burn inflation, lifting Salaried coverage to 92.2% and Student coverage to 100.0%, with aggregate empirical coverage calibrated to **76.9%** (near theoretical 80% target).
+- **Real Local Authentication**:
+  - Replaced fake login and Python `hash()` tokens with real `bcrypt` password hashing and HMAC-SHA256 signed JWT tokens.
+  - Pre-hashed demo credentials and provided first-login enrollment for custom auditors.
+  - Protected all functional `/api` routes via `require_authenticated_user` dependency while keeping `/api/auth/login` and `/api/health` public.
+  - Configured Axios interceptor in frontend to attach `Bearer` token and automatically handle 401 expiration.
+- **Encryption Fail-Loudly & Explicit State**:
+  - Startup notice plainly alerts when `FINSIGHT_ENCRYPTION_KEY` is unset: *"Statements are stored UNENCRYPTED in SQLite."*
+  - Strict exception handling: `encrypt()` and `decrypt()` fail loudly with `ValueError` on bad keys, missing keys, or corrupted tokens (zero silent plaintext fallback).
+  - Explicitly surfaced `"Encryption: ON/OFF"` in `/api/privacy/status` and Privacy Receipt modal.
+- **Network Telemetry Wiring**:
+  - Intercepted low-level `socket.socket.connect` in `NetworkTracker.install_hook()`, verifying genuine zero outbound egress to non-local hosts.
+- **Cleanup & Modernization**:
+  - Migrated from deprecated `@app.on_event("startup")` to FastAPI `@asynccontextmanager` `lifespan` handler.
+  - Pinned exact dependency versions in `backend/requirements.txt` and separated test/linting tools into `backend/requirements-dev.txt`.
+  - Added `.dockerignore` ignoring `venv/`, `node_modules/`, `*.db`, `.git/`, and cache folders.
+  - Replaced all absolute links with relative paths in `scripts/evaluate.py` and `docs/evaluation.md`.
+- **Test Suite Evolution**:
+  - Test suite grew from 53 (Phase 1) -> 59 (Phase 2) -> 70 (Phase 3) -> 75 (Phase 4) -> 80 (Phase 5/6) -> **84 tests (Phase 7)**, all passing.

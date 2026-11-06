@@ -1,0 +1,30 @@
+# Version control
+.git
+.gitignore
+
+# Python virtual environments & bytecode
+venv/
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.ruff_cache/
+
+# Node dependencies and build
+node_modules/
+frontend/node_modules/
+frontend/dist/
+
+# SQLite databases & logs
+*.db
+*.sqlite
+*.sqlite3
+backend/finsight.db
+backend/*.db
+
+# Secrets & local env
+.env
+.env.*
+!.env.example

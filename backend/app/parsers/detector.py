@@ -8,13 +8,31 @@ def detect_format(content: bytes, filename: str = "") -> Tuple[str, float, List[
     Distinguishes institution headers/columns from incidental transaction narration.
     Returns:
       (format_name, confidence, detected_headers, sample_rows)
-      format_name in ['hdfc', 'sbi', 'generic', 'pdf', 'unknown']
+      format_name in ['hdfc', 'sbi', 'icici', 'axis', 'kotak', 'excel', 'generic', 'pdf', 'unknown']
     """
+    if not content or len(content) < 5:
+        return 'unknown', 0.0, [], []
+
+    fn_lower = filename.lower()
+
     # 1. Check for PDF
-    if content.startswith(b'%PDF') or filename.lower().endswith('.pdf'):
+    if content.startswith(b'%PDF') or fn_lower.endswith('.pdf'):
         return 'pdf', 0.95, ['PDF Document'], []
 
-    # 2. Check for CSV / text
+    # 2. Check for Microsoft Excel (.xlsx or .xls)
+    is_xlsx_bytes = content.startswith(b'PK\x03\x04')  # Zip container for OOXML
+    is_xls_bytes = content.startswith(b'\xd0\xcf\x11\xe0')  # OLE container
+    if is_xlsx_bytes or is_xls_bytes or fn_lower.endswith('.xlsx') or fn_lower.endswith('.xls'):
+        try:
+            excel_file = io.BytesIO(content)
+            df = pd.read_excel(excel_file, sheet_name=0, nrows=5, dtype=str)
+            headers = [str(c) for c in df.columns]
+            samples = df.fillna('').to_dict(orient='records')
+            return 'excel', 0.95, headers, samples
+        except Exception:
+            return 'excel', 0.85, ['Excel Workbook'], []
+
+    # 3. Check for CSV / text
     try:
         text = content.decode('utf-8', errors='ignore')
     except Exception:
@@ -24,28 +42,48 @@ def detect_format(content: bytes, filename: str = "") -> Tuple[str, float, List[
     if not lines:
         return 'unknown', 0.0, [], []
 
-    # Check first 5 lines for explicit bank title metadata
-    top_metadata = "\n".join(lines[:6]).lower()
+    # Check top lines for explicit bank title metadata
+    top_metadata = "\n".join(lines[:8]).lower()
     headers, samples = _extract_headers_and_samples(lines)
     header_lower = [h.lower() for h in headers]
+    header_str = " ".join(header_lower)
 
-    # HDFC Detection:
+    # A. ICICI Detection:
+    is_icici_meta = 'icici bank' in top_metadata or 'icici' in top_metadata
+    is_icici_header = ('transaction remarks' in header_str or 'withdrawal amount (inr' in header_str or 'deposit amount (inr' in header_str)
+    if is_icici_meta or is_icici_header:
+        return 'icici', 0.95, headers, samples
+
+    # B. Axis Detection:
+    is_axis_meta = 'axis bank' in top_metadata or ('axis' in top_metadata and 'account' in top_metadata)
+    is_axis_header = ('tran date' in header_str and 'chqno' in header_str) or \
+                     ('particulars' in header_str and 'dr' in header_str and 'cr' in header_str and 'bal' in header_str)
+    if is_axis_meta or is_axis_header:
+        return 'axis', 0.95, headers, samples
+
+    # C. Kotak Mahindra Detection:
+    is_kotak_meta = 'kotak mahindra' in top_metadata or 'kotak bank' in top_metadata or 'kotak' in top_metadata
+    is_kotak_header = ('dr / cr' in header_str or 'dr/cr' in header_str) and ('amount' in header_str or 'balance' in header_str)
+    if is_kotak_meta or is_kotak_header:
+        return 'kotak', 0.95, headers, samples
+
+    # D. HDFC Detection:
     is_hdfc_header = any('withdrawal amt' in h for h in header_lower) and \
                      any('closing balance' in h or 'deposit amt' in h for h in header_lower)
     is_hdfc_meta = 'hdfc bank' in top_metadata or ('hdfc' in top_metadata and 'account' in top_metadata)
     if is_hdfc_meta or is_hdfc_header:
         return 'hdfc', 0.95, headers, samples
 
-    # SBI Detection:
+    # E. SBI Detection:
     is_sbi_header = any('txn date' in h for h in header_lower) and \
                     any('ref no' in h or 'cheque no' in h for h in header_lower)
     is_sbi_meta = 'state bank of india' in top_metadata or 'sbi' in top_metadata
     if is_sbi_meta or is_sbi_header:
         return 'sbi', 0.95, headers, samples
 
-    # Generic CSV Detection
+    # F. Generic CSV Detection
     has_date = any('date' in h for h in header_lower)
-    has_amount = any(w in h for h in header_lower for w in ['amount', 'debit', 'credit', 'withdrawal', 'deposit'])
+    has_amount = any(w in h for h in header_lower for w in ['amount', 'debit', 'credit', 'withdrawal', 'deposit', 'dr', 'cr'])
     has_balance = any('balance' in h or 'bal' in h for h in header_lower)
 
     if has_date and (has_amount or has_balance):
@@ -58,7 +96,7 @@ def detect_format(content: bytes, filename: str = "") -> Tuple[str, float, List[
 
 def _extract_headers_and_samples(lines: List[str]) -> Tuple[List[str], List[Dict[str, Any]]]:
     """Locates CSV header and extracts sample rows."""
-    for idx, line in enumerate(lines[:25]):
+    for idx, line in enumerate(lines[:30]):
         if ',' in line or ';' in line or '\t' in line:
             try:
                 csv_block = "\n".join(lines[idx:idx + 6])
@@ -66,7 +104,7 @@ def _extract_headers_and_samples(lines: List[str]) -> Tuple[List[str], List[Dict
                 if len(df.columns) >= 2:
                     col_names = [str(c).strip() for c in df.columns]
                     low_cols = [c.lower() for c in col_names]
-                    if any(w in ' '.join(low_cols) for w in ['date', 'amount', 'balance', 'debit', 'credit', 'desc', 'particular']):
+                    if any(w in ' '.join(low_cols) for w in ['date', 'amount', 'balance', 'debit', 'credit', 'desc', 'particular', 'tran', 'remark']):
                         samples = df.head(5).fillna('').to_dict(orient='records')
                         return col_names, samples
             except Exception:

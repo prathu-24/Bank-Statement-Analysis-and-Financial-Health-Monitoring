@@ -1,4 +1,4 @@
-from typing import List, Dict, Any, Set
+from typing import List, Dict, Any, Set, Optional
 from datetime import datetime, timedelta
 from collections import defaultdict
 import numpy as np
@@ -7,16 +7,17 @@ from sqlalchemy.orm import Session
 from app.models.transaction import TransactionModel
 from app.models.alert import AlertModel
 from app.services.categorizer import TransactionCategorizer
+from app.services.recurring import RecurringPaymentDetector
 
 class AnomalyDetector:
     """
     Explainable statistical detector for atypical transactions.
     Rules & Statistical Models:
-      1. Rapid Duplicate Detection (Identical merchant & amount within 48 hours)
-      2. Unusually Large Outlay (> ₹25,000 or > 2.5x 90th percentile)
-      3. Category-Specific Outliers (Z-score >= 1.75 against category distribution)
-      4. Global Interquartile Range (IQR) outliers (Debit > Q3 + 1.5*IQR)
-      5. New Merchant Outlier (First appearance with above-median amount)
+      1. Rapid Duplicate Detection (Identical merchant & amount on same day or consecutive days for major outlays)
+      2. Known Recurring Exclusion (Prevents scheduled Rent, EMIs, and subscriptions from false alerting)
+      3. Category-Specific Robust Outliers (Median & MAD / IQR with robust Z-scores)
+      4. Global Robust Outlier Detection (Extreme spikes against overall discretionary spending, >= ₹5,000)
+      5. Structured Severity Levels (LOW, MEDIUM, HIGH, CRITICAL)
 
     Strict Compliance:
       - Never uses the term 'fraud'
@@ -42,9 +43,14 @@ class AnomalyDetector:
 
         # Sort chronologically
         sorted_txs = sorted(debits, key=lambda x: (x.date, x.id))
-        amounts = [tx.debit for tx in sorted_txs]
 
-        # 1. Rapid Duplicate Detection
+        # 1. Identify Known Recurring Commitments to Ignore (e.g. regular Rent, EMI, monthly bills)
+        recurring_commitments = RecurringPaymentDetector.detect(transactions)
+        recurring_tx_ids: Set[int] = set()
+        for rec in recurring_commitments:
+            recurring_tx_ids.update(rec.get("transaction_ids", []))
+
+        # 2. Rapid Duplicate Detection (Double-swipes / duplicate debits)
         for i in range(len(sorted_txs) - 1):
             curr = sorted_txs[i]
             nxt = sorted_txs[i + 1]
@@ -56,105 +62,105 @@ class AnomalyDetector:
                 m1 = curr.normalized_merchant or TransactionCategorizer.extract_normalized_merchant(curr.description)
                 m2 = nxt.normalized_merchant or TransactionCategorizer.extract_normalized_merchant(nxt.description)
 
-                if m1 == m2 and abs(curr.debit - nxt.debit) < 0.01 and 0 <= days_diff <= 2:
-                    if nxt.id not in flagged_tx_ids:
-                        flagged_tx_ids.add(nxt.id)
-                        alerts.append(cls._create_alert_dict(
-                            nxt,
-                            alert_type="RAPID_DUPLICATE",
-                            severity="HIGH",
-                            reason=f"Repeated charge of ₹{nxt.debit:,.2f} at {m2} within {days_diff} day(s) of row from {curr.date}.",
-                            dismissed=dismissed_map.get(nxt.id, False),
-                            db_alert=alert_db_map.get(nxt.id)
-                        ))
+                same_amount = abs(curr.debit - nxt.debit) < 0.01
+
+                # Condition A: Exactly on same day (days_diff == 0) with identical merchant & amount
+                is_same_day_dup = (days_diff == 0 and m1 == m2 and same_amount)
+
+                # Condition B: Consecutive day (days_diff == 1) for significant amounts (>= ₹1,000) or identical narration
+                is_consecutive_dup = (
+                    days_diff == 1 and m1 == m2 and same_amount and
+                    (nxt.debit >= 1000.0 or curr.description.strip().lower() == nxt.description.strip().lower())
+                )
+
+                if (is_same_day_dup or is_consecutive_dup) and nxt.id not in flagged_tx_ids:
+                    flagged_tx_ids.add(nxt.id)
+                    severity = "CRITICAL" if nxt.debit >= 10000.0 else ("HIGH" if nxt.debit >= 500.0 else "MEDIUM")
+                    alerts.append(cls._create_alert_dict(
+                        nxt,
+                        alert_type="RAPID_DUPLICATE",
+                        severity=severity,
+                        reason=f"Repeated charge of ₹{nxt.debit:,.2f} at {m2} within {days_diff} day(s) of row from {curr.date}.",
+                        dismissed=dismissed_map.get(nxt.id, False),
+                        db_alert=alert_db_map.get(nxt.id)
+                    ))
             except Exception:
                 continue
 
-        # 2. Category-Specific Z-Scores
+        # 3. Category-Specific Robust Outliers (Median & MAD)
         cat_amounts = defaultdict(list)
         for tx in sorted_txs:
-            cat = tx.category or "Uncategorized"
-            cat_amounts[cat].append(tx.debit)
+            if tx.id not in recurring_tx_ids:
+                cat = tx.category or "Uncategorized"
+                cat_amounts[cat].append(tx.debit)
 
         cat_stats = {}
         for cat, vals in cat_amounts.items():
             if len(vals) >= 3:
+                vals_arr = np.array(vals, dtype=np.float64)
+                med = float(np.median(vals_arr))
+                mad = float(np.median(np.abs(vals_arr - med)))
+                mad_sigma = float(1.4826 * mad) if mad > 0 else float(np.std(vals_arr))
+                if mad_sigma < 1.0:
+                    q75, q25 = np.percentile(vals_arr, [75, 25])
+                    iqr = q75 - q25
+                    mad_sigma = float(iqr / 1.349) if iqr > 0 else float(max(10.0, np.std(vals_arr)))
                 cat_stats[cat] = {
-                    "mean": float(np.mean(vals)),
-                    "std": float(np.std(vals))
+                    "median": med,
+                    "sigma": max(1.0, mad_sigma)
                 }
 
         for tx in sorted_txs:
-            if tx.id in flagged_tx_ids:
+            if tx.id in flagged_tx_ids or tx.id in recurring_tx_ids:
                 continue
 
             cat = tx.category or "Uncategorized"
             merchant = tx.normalized_merchant or TransactionCategorizer.extract_normalized_merchant(tx.description)
 
             if cat in cat_stats:
-                mean_c = cat_stats[cat]["mean"]
-                std_c = cat_stats[cat]["std"]
-                if std_c > 1.0:
-                    z_score = (tx.debit - mean_c) / std_c
-                    if z_score >= 1.75:
-                        flagged_tx_ids.add(tx.id)
-                        alerts.append(cls._create_alert_dict(
-                            tx,
-                            alert_type="CATEGORY_ZSCORE_OUTLIER",
-                            severity="HIGH" if z_score >= 2.5 else "MEDIUM",
-                            reason=f"Amount of ₹{tx.debit:,.2f} at {merchant} is {round(z_score, 1)} standard deviations above your {cat} average of ₹{mean_c:,.2f}.",
-                            dismissed=dismissed_map.get(tx.id, False),
-                            db_alert=alert_db_map.get(tx.id)
-                        ))
+                med_c = cat_stats[cat]["median"]
+                sigma_c = cat_stats[cat]["sigma"]
+                robust_z = (tx.debit - med_c) / sigma_c
 
-        # 3. Global Statistical Outliers (IQR or Absolute Large Spikes)
-        if len(amounts) >= 4:
-            q75, q25 = np.percentile(amounts, [75, 25])
-            iqr = q75 - q25
-            iqr_upper_bound = q75 + (1.5 * iqr)
-            median_spend = float(np.median(amounts))
+                # Robust threshold: at least 3.0 robust std deviations AND at least 2.5x median AND >= ₹1,500 over median
+                if robust_z >= 3.0 and tx.debit >= (med_c * 2.5) and (tx.debit - med_c) >= 1500.0:
+                    flagged_tx_ids.add(tx.id)
+                    severity = "CRITICAL" if robust_z >= 5.0 and tx.debit >= 25000.0 else ("HIGH" if robust_z >= 3.5 or tx.debit >= 10000.0 else "MEDIUM")
+                    alerts.append(cls._create_alert_dict(
+                        tx,
+                        alert_type="CATEGORY_ZSCORE_OUTLIER",
+                        severity=severity,
+                        reason=f"Amount of ₹{tx.debit:,.2f} at {merchant} is {round(robust_z, 1)} standard deviations above your {cat} median of ₹{med_c:,.2f}.",
+                        dismissed=dismissed_map.get(tx.id, False),
+                        db_alert=alert_db_map.get(tx.id)
+                    ))
+
+        # 4. Global Non-Recurring Outlier Spikes (IQR / Extreme Discretionary Outlays, minimum ₹5,000)
+        non_rec_debits = [tx.debit for tx in sorted_txs if tx.id not in recurring_tx_ids]
+        if len(non_rec_debits) >= 4:
+            q75, q25 = np.percentile(non_rec_debits, [75, 25])
+            global_iqr = q75 - q25
+            global_med = float(np.median(non_rec_debits))
+            global_spike_bound = max(global_med * 4.0, q75 + (2.5 * global_iqr), 5000.0)
         else:
-            iqr_upper_bound = 20000.0
-            median_spend = float(np.median(amounts))
+            global_spike_bound = 5000.0
 
         for tx in sorted_txs:
-            if tx.id in flagged_tx_ids:
+            if tx.id in flagged_tx_ids or tx.id in recurring_tx_ids:
                 continue
 
-            # Unusually large absolute transaction
-            if tx.debit >= 25000.0 or (len(amounts) >= 4 and tx.debit > iqr_upper_bound and tx.debit >= 5000.0):
+            # Check if this non-recurring expenditure is an extreme spike
+            if tx.debit >= global_spike_bound:
                 flagged_tx_ids.add(tx.id)
+                severity = "CRITICAL" if tx.debit >= 25000.0 else "HIGH"
                 alerts.append(cls._create_alert_dict(
                     tx,
                     alert_type="UNUSUALLY_LARGE_AMOUNT",
-                    severity="HIGH" if tx.debit >= 30000.0 else "MEDIUM",
-                    reason=f"Unusually large expenditure of ₹{tx.debit:,.2f} significantly exceeds your typical spending threshold.",
+                    severity=severity,
+                    reason=f"Unusually large expenditure of ₹{tx.debit:,.2f} significantly exceeds your discretionary spending baseline.",
                     dismissed=dismissed_map.get(tx.id, False),
                     db_alert=alert_db_map.get(tx.id)
                 ))
-
-        # 4. New Merchant Outlier Detection
-        seen_merchants: Set[str] = set()
-        for tx in sorted_txs:
-            if tx.id in flagged_tx_ids:
-                seen_merchants.add(tx.normalized_merchant or TransactionCategorizer.extract_normalized_merchant(tx.description))
-                continue
-
-            merchant = tx.normalized_merchant or TransactionCategorizer.extract_normalized_merchant(tx.description)
-            is_new = merchant not in seen_merchants
-
-            if is_new and len(seen_merchants) >= 5 and tx.debit > (median_spend * 2.5) and tx.debit >= 3000:
-                flagged_tx_ids.add(tx.id)
-                alerts.append(cls._create_alert_dict(
-                    tx,
-                    alert_type="NEW_MERCHANT_SPIKE",
-                    severity="MEDIUM",
-                    reason=f"First-time merchant '{merchant}' with spending ₹{tx.debit:,.2f}, which is {round(tx.debit / max(1, median_spend), 1)}x higher than your median expense.",
-                    dismissed=dismissed_map.get(tx.id, False),
-                    db_alert=alert_db_map.get(tx.id)
-                ))
-
-            seen_merchants.add(merchant)
 
         # Sync detected alerts with DB
         for alt in alerts:

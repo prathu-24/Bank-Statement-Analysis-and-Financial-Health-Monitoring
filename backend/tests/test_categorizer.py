@@ -32,3 +32,26 @@ def test_user_overrides_priority():
     )
     assert cat == "Personal Discretionary"
 
+def test_gig_worker_and_indian_rules():
+    # Inflow from Swiggy/Uber to worker should be Income, not Food/Transport
+    assert TransactionCategorizer.categorize("SWIGGY BUNDL TECH WEEKLY INFLOW", credit=9500.0) == "Income"
+    assert TransactionCategorizer.categorize("UBER INDIA SYSTEMS DISBURSEMENT", credit=8200.0) == "Income"
+    
+    # Loans & EMI should override generic transport 'auto'
+    assert TransactionCategorizer.categorize("BAJAJ AUTO FINANCE TWO WHEELER EMI", debit=3200.0) == "Loans & EMI"
+    
+    # Subscriptions & Storage
+    assert TransactionCategorizer.categorize("GOOGLE STORAGE 100GB SUBSCRIPTION", debit=219.0) == "Subscriptions"
+    
+    # Education
+    assert TransactionCategorizer.categorize("COLLEGE UNIVERSITY SEMESTER EXAM FEE", debit=9200.0) == "Education"
+    assert TransactionCategorizer.categorize("URGENT TEXTBOOK PHOTOCOPY XEROX", debit=350.0) == "Education"
+
+def test_confidence_and_review_fallback():
+    cat, conf = TransactionCategorizer.categorize_with_confidence("SWIGGY BANGALORE", debit=450.0)
+    assert cat == "Food & Dining"
+    assert conf >= 0.90
+
+    cat_unk, conf_unk = TransactionCategorizer.categorize_with_confidence("UNRECOGNIZED NOISE CHUNK 19283", debit=500.0)
+    assert cat_unk == "Uncategorized – review"
+    assert conf_unk < 0.50

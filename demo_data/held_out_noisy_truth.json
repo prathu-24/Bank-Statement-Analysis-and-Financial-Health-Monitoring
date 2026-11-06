@@ -1,0 +1,63 @@
+{
+  "persona": "Held-Out Noisy Benchmark",
+  "opening_balance": 15000.0,
+  "date_range": "2024-01-01 to 2024-05-30",
+  "total_transactions": 55,
+  "planted_events": [
+    {
+      "event_type": "duplicate_charge",
+      "date": "2024-03-12",
+      "merchant": "CHAAYOS",
+      "amount": 280.0
+    },
+    {
+      "event_type": "spending_spike",
+      "date": "2024-05-18",
+      "merchant": "ALLEN CAREER INSTITUTE",
+      "amount": 15000.0
+    }
+  ],
+  "true_categories": {
+    "NEFT-CR-INFOSYS TECHNOLOGIES-SALARY FOR JAN": "Income",
+    "UPI/4129810/CHAAYOS CONNAUGHT PLACE/paytm@axis/ORDER8102": "Food & Dining",
+    "FASTAG RECHARGE ICICI TOLL PLAZA NH48": "Transport",
+    "NEFT-CR-RENT TO LANDLORD S K VERMA": "Housing & Rent",
+    "ACH DR HDFC BANK AUTO LOAN EMI": "Loans & EMI",
+    "ACH DR LIC OF INDIA POLICY 9283910 MONTHLY": "Investments",
+    "RELIANCE JIO FIBER BROADBAND BILL": "Utilities & Bills",
+    "AMZN MKTP IN*PAYMENT RETAIL MUMBAI": "Shopping",
+    "APPLE.COM/BILL RECURRING ITUNES": "Subscriptions",
+    "APOLLO PHARMACY INDIRANAGAR BANGALORE": "Healthcare",
+    "POS SUBWAY SANDWICH AIRPORT T3": "Food & Dining",
+    "UPI/BPCL PETROL PUMP CHENNAI/REF88102": "Transport",
+    "NEFT-CR-INFOSYS TECHNOLOGIES-SALARY FOR FEB": "Income",
+    "POS 98124 BLUE TOKAI COFFEE ROASTERS GURGAON": "Food & Dining",
+    "AIRTEL POSTPAID MOBILE RECHARGE": "Utilities & Bills",
+    "GROWW INVEST TECH MUTUAL FUND SIP": "Investments",
+    "YOUTUBE PREMIUM FAMILY MONTHLY": "Subscriptions",
+    "FLIPKART PAYMENTS BANGALORE ORDER9182": "Shopping",
+    "IRCTC WEB TICKET BOOKING NEW DELHI": "Transport",
+    "TATA 1MG HEALTHCARE MEDICINES ORDER": "Healthcare",
+    "NEFT-CR-INFOSYS TECHNOLOGIES-SALARY FOR MAR": "Income",
+    "UPI/HALDIRAM-SWEETS-NOIDA/ybl@upi/REF3819": "Food & Dining",
+    "MYNTRA DESIGNS PVT LTD CLOTHING": "Shopping",
+    "HOTSTAR DISNEY ANNUAL SUBSCRIPTION": "Subscriptions",
+    "RAPIDO BIKE TAXI RIDE BLR5019": "Transport",
+    "TATA POWER DDL ELECTRICITY DELHI": "Utilities & Bills",
+    "DR LAL PATHLABS BLOOD TEST REPORT": "Healthcare",
+    "NEFT-CR-INFOSYS TECHNOLOGIES-SALARY FOR APR": "Income",
+    "SWIGGY*INSTAMART GROCERY SECTOR 62": "Food & Dining",
+    "INDRAPRASTHA GAS LIMITED PGD BILL": "Utilities & Bills",
+    "DROPBOX INC CLOUD STORAGE 2TB": "Subscriptions",
+    "DECATHLON SPORTS INDIA KORAMANGALA": "Shopping",
+    "INDIGO AIRLINES FLIGHT 6E204 DEL-BOM": "Transport",
+    "COURSERA PLUS ANNUAL LEARNING PASS": "Education",
+    "NEFT-CR-INFOSYS TECHNOLOGIES-SALARY FOR MAY": "Income",
+    "UPI/BARBEQUE NATION BUFFET NOIDA/HDFC": "Food & Dining",
+    "BESCOM ONLINE BILLPAY BANGALORE": "Utilities & Bills",
+    "ALLEN CAREER INSTITUTE COACHING TUITION": "Education",
+    "ZARA RETAIL SELECT CITYWALK DEL": "Shopping",
+    "MAX SUPER SPECIALITY HOSPITAL OP CONSULT": "Healthcare",
+    "RANDOM CRYPTIC MISC ENTRY 882910": "Uncategorized"
+  }
+}

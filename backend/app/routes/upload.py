@@ -1,4 +1,5 @@
 import json
+import os
 from typing import List, Optional
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Depends
 from sqlalchemy.orm import Session
@@ -7,21 +8,69 @@ from app.database import get_db
 from app.models.transaction import TransactionModel
 from app.models.category_override import CategoryOverrideModel
 from app.schemas.transaction import NormalizedTransaction, ColumnMapping, ParseResult
-from app.parsers import detect_format, HDFCParser, SBIParser, GenericCSVParser, PDFParser
+from app.parsers import (
+    detect_format,
+    HDFCParser,
+    SBIParser,
+    ICICIParser,
+    AxisParser,
+    KotakParser,
+    ExcelParser,
+    GenericCSVParser,
+    PDFParser
+)
 from app.services.validator import StatementValidator
 from app.services.categorizer import TransactionCategorizer
 from app.services.sanitizer import DataSanitizer
 
 router = APIRouter(prefix="/api/upload", tags=["Upload & Parsing"])
 
+MAX_UPLOAD_SIZE = 25 * 1024 * 1024  # 25 Megabytes
+ALLOWED_EXTENSIONS = {".csv", ".pdf", ".xlsx", ".xls", ".txt"}
+
+def _get_parser_for_format(fmt: str):
+    if fmt == 'hdfc':
+        return HDFCParser()
+    elif fmt == 'sbi':
+        return SBIParser()
+    elif fmt == 'icici':
+        return ICICIParser()
+    elif fmt == 'axis':
+        return AxisParser()
+    elif fmt == 'kotak':
+        return KotakParser()
+    elif fmt == 'excel':
+        return ExcelParser()
+    elif fmt == 'pdf':
+        return PDFParser()
+    return GenericCSVParser()
+
 @router.post("", response_model=ParseResult)
 async def upload_statement(file: UploadFile = File(...), db: Session = Depends(get_db)):
     """
-    Upload a bank statement (CSV or PDF).
+    Upload a bank statement (CSV, XLSX, or PDF).
     Automatically detects format, parses transactions, categorizes them, and runs validation.
     """
+    filename = file.filename or "statement.csv"
+    ext = os.path.splitext(filename)[1].lower()
+    if ext and ext not in ALLOWED_EXTENSIONS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported file format '{ext}'. FinSight accepts CSV, Excel (.xlsx/.xls), and PDF bank statements."
+        )
+
     content = await file.read()
-    filename = file.filename or "statement"
+    if len(content) > MAX_UPLOAD_SIZE:
+        raise HTTPException(
+            status_code=413,
+            detail=f"File exceeds maximum allowable size of {MAX_UPLOAD_SIZE // (1024 * 1024)}MB. Please upload a smaller statement."
+        )
+
+    if not content or len(content.strip()) == 0:
+        raise HTTPException(
+            status_code=400,
+            detail="The uploaded statement file is empty (0 bytes). Please upload a valid bank statement."
+        )
 
     fmt, confidence, headers, samples = detect_format(content, filename)
 
@@ -37,20 +86,20 @@ async def upload_statement(file: UploadFile = File(...), db: Session = Depends(g
             validation_report=None
         )
 
-    parser = None
-    if fmt == 'hdfc':
-        parser = HDFCParser()
-    elif fmt == 'sbi':
-        parser = SBIParser()
-    elif fmt == 'pdf':
-        parser = PDFParser()
-    elif fmt == 'generic':
-        parser = GenericCSVParser()
+    parser = _get_parser_for_format(fmt)
 
     try:
         transactions = parser.parse(content, filename)
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Failed to parse statement: {str(e)}")
+
+    if not transactions:
+        raise HTTPException(
+            status_code=400,
+            detail="No valid transactions could be parsed from the provided statement. Check column headers or use manual mapping."
+        )
 
     # Apply auto-categorization and extract merchants
     overrides = {o.merchant_pattern: o.category for o in db.query(CategoryOverrideModel).all()}
@@ -82,10 +131,13 @@ async def upload_with_mapping(
     db: Session = Depends(get_db)
 ):
     """
-    Parse statement with explicit user column mapping.
+    Parse statement with explicit user column mapping (CSV or Excel).
     """
     content = await file.read()
     filename = file.filename or "statement.csv"
+
+    if not content or len(content.strip()) == 0:
+        raise HTTPException(status_code=400, detail="Uploaded file is empty.")
 
     try:
         map_dict = json.loads(mapping)
@@ -93,7 +145,9 @@ async def upload_with_mapping(
     except Exception as e:
         raise HTTPException(status_code=422, detail=f"Invalid column mapping payload: {str(e)}")
 
-    parser = GenericCSVParser(mapping=col_mapping)
+    is_excel = filename.lower().endswith(('.xlsx', '.xls')) or content.startswith(b'PK\x03\x04')
+    parser = ExcelParser(mapping=col_mapping) if is_excel else GenericCSVParser(mapping=col_mapping)
+
     try:
         transactions = parser.parse(content, filename)
     except Exception as e:
@@ -112,7 +166,7 @@ async def upload_with_mapping(
 
     return ParseResult(
         filename=filename,
-        detected_format="generic_mapped",
+        detected_format="excel_mapped" if is_excel else "generic_mapped",
         confidence=1.0,
         detected_headers=[col_mapping.date_col, col_mapping.description_col, col_mapping.balance_col],
         sample_rows=[],
@@ -173,47 +227,43 @@ async def confirm_and_save(transactions: List[NormalizedTransaction], db: Sessio
 @router.post("/demo/{demo_type}", response_model=ParseResult)
 async def load_demo_statement(demo_type: str, db: Session = Depends(get_db)):
     """
-    Instantly loads and validates one of the 5 reproducible synthetic demo statements.
-    demo_type: 'hdfc', 'sbi', 'generic', 'pdf', 'broken'
+    Instantly loads and validates one of the reproducible synthetic demo statements.
+    demo_type: 'hdfc', 'sbi', 'icici', 'axis', 'kotak', 'excel', 'generic', 'pdf', 'broken'
     """
-    import os
     base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
     demo_dir = os.path.join(base_dir, "demo_data")
 
     filename_map = {
         "hdfc": "hdfc_sample.csv",
         "sbi": "sbi_sample.csv",
+        "icici": "icici_sample.csv",
+        "axis": "axis_sample.csv",
+        "kotak": "kotak_sample.csv",
+        "excel": "sample_statement.xlsx",
         "generic": "generic_sample.csv",
         "pdf": "sample_statement.pdf",
         "broken": "broken_sample.csv",
         "salaried": "persona_salaried.csv",
         "gig_worker": "persona_gig_worker.csv",
-        "student": "persona_student.csv"
+        "student": "persona_student.csv",
+        "held_out_noisy": "persona_held_out_noisy.csv"
     }
 
-    if demo_type.lower() not in filename_map:
+    key = demo_type.lower()
+    if key not in filename_map:
         raise HTTPException(status_code=404, detail=f"Unknown demo type '{demo_type}'. Choose from {list(filename_map.keys())}.")
 
-    file_name = filename_map[demo_type.lower()]
+    file_name = filename_map[key]
     file_path = os.path.join(demo_dir, file_name)
 
     if not os.path.exists(file_path):
-        raise HTTPException(status_code=404, detail=f"Demo file not found at {file_path}. Please run generate_demo_data.py first.")
+        raise HTTPException(status_code=404, detail=f"Demo file not found at {file_path}.")
 
     with open(file_path, "rb") as f:
         content = f.read()
 
     fmt, confidence, headers, samples = detect_format(content, file_name)
-
-    parser = None
-    if fmt == 'hdfc':
-        parser = HDFCParser()
-    elif fmt == 'sbi':
-        parser = SBIParser()
-    elif fmt == 'pdf':
-        parser = PDFParser()
-    else:
-        parser = GenericCSVParser()
+    parser = _get_parser_for_format(fmt)
 
     transactions = parser.parse(content, file_name)
 
@@ -238,4 +288,3 @@ async def load_demo_statement(demo_type: str, db: Session = Depends(get_db)):
         transactions=transactions,
         validation_report=validation_report.model_dump()
     )
-

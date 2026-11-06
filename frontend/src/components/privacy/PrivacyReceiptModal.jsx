@@ -191,9 +191,18 @@ export default function PrivacyReceiptModal({ isOpen, onClose, onDataPurged }) {
 
               {/* Encryption */}
               <div className="p-3.5 bg-slate-950/60 border border-slate-800/80 rounded-2xl space-y-1.5">
-                <div className="flex items-center gap-2 text-xs font-semibold text-slate-300">
-                  <Key className="w-3.5 h-3.5 text-purple-400" />
-                  At-Rest Encryption
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-xs font-semibold text-slate-300">
+                    <Key className="w-3.5 h-3.5 text-purple-400" />
+                    At-Rest Encryption
+                  </div>
+                  <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                    encryption.enabled
+                      ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30'
+                      : 'bg-amber-500/10 text-amber-400 border border-amber-500/30'
+                  }`}>
+                    {encryption.enabled ? "Encryption: ON" : "Encryption: OFF"}
+                  </span>
                 </div>
                 <div className="flex items-center gap-1.5 text-[11px]">
                   <span className={`px-1.5 py-0.5 rounded font-mono font-bold text-[10px] ${
@@ -201,10 +210,10 @@ export default function PrivacyReceiptModal({ isOpen, onClose, onDataPurged }) {
                       ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
                       : 'bg-slate-800 text-slate-400'
                   }`}>
-                    {encryption.cipher || 'Plaintext SQLite'}
+                    {encryption.cipher || (encryption.enabled ? 'AES-128 Fernet' : 'Plaintext SQLite')}
                   </span>
                   <span className="text-slate-400 text-[10px]">
-                    {encryption.enabled ? 'Active key detected' : '(Optional Fernet key)'}
+                    {encryption.enabled ? 'Data encrypted before SQLite write' : 'Stored unencrypted in SQLite'}
                   </span>
                 </div>
               </div>

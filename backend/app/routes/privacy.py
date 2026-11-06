@@ -142,8 +142,10 @@ def get_privacy_status(db: Session = Depends(get_db)):
             "policy_description": retention_policy_desc,
             "recently_purged_count": recently_purged
         },
+        "encryption_status": "ON" if DataEncryptionService.is_enabled() else "OFF",
         "encryption_at_rest": {
             "enabled": DataEncryptionService.is_enabled(),
+            "status": "ON (AES-128 Fernet)" if DataEncryptionService.is_enabled() else "OFF (Unencrypted Plaintext)",
             "cipher": "AES-128-CBC (Fernet)" if DataEncryptionService.is_enabled() else "Plaintext SQLite",
             "key_configured": os.environ.get("FINSIGHT_ENCRYPTION_KEY") is not None
         },

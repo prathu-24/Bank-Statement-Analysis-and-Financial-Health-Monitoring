@@ -81,6 +81,40 @@ def test_data_encryption_service_cycle():
         elif "FINSIGHT_ENCRYPTION_KEY" in os.environ:
             del os.environ["FINSIGHT_ENCRYPTION_KEY"]
 
+def test_encryption_fails_loudly_on_bad_key_or_corrupted_token():
+    orig_key = os.environ.get("FINSIGHT_ENCRYPTION_KEY")
+    try:
+        # 1. Invalid key must fail loudly on encrypt
+        os.environ["FINSIGHT_ENCRYPTION_KEY"] = "not-a-valid-fernet-key"
+        with pytest.raises(ValueError) as exc:
+            DataEncryptionService.encrypt("Sensitive text")
+        assert "Encryption failed" in str(exc.value)
+
+        # 2. Encrypted payload when key is unset must fail loudly
+        if "FINSIGHT_ENCRYPTION_KEY" in os.environ:
+            del os.environ["FINSIGHT_ENCRYPTION_KEY"]
+        with pytest.raises(ValueError) as exc:
+            DataEncryptionService.decrypt("enc:gAAAAABlxFakePayloadHere==")
+        assert "FINSIGHT_ENCRYPTION_KEY is unset" in str(exc.value)
+
+        # 3. Corrupted or mismatched key payload must fail loudly (no silent fallback)
+        valid_key_1 = DataEncryptionService.generate_key()
+        valid_key_2 = DataEncryptionService.generate_key()
+
+        os.environ["FINSIGHT_ENCRYPTION_KEY"] = valid_key_1
+        token = DataEncryptionService.encrypt("Classified Financial Record")
+
+        # Switch to different key
+        os.environ["FINSIGHT_ENCRYPTION_KEY"] = valid_key_2
+        with pytest.raises(ValueError) as exc:
+            DataEncryptionService.decrypt(token)
+        assert "Silent fallback is prohibited" in str(exc.value)
+    finally:
+        if orig_key:
+            os.environ["FINSIGHT_ENCRYPTION_KEY"] = orig_key
+        elif "FINSIGHT_ENCRYPTION_KEY" in os.environ:
+            del os.environ["FINSIGHT_ENCRYPTION_KEY"]
+
 def test_network_tracker():
     NetworkTracker.reset()
     assert NetworkTracker.get_call_count() == 0
@@ -145,7 +179,10 @@ def test_get_privacy_status_computed_receipt(privacy_db):
     # 7. Encryption block
     enc_block = status["encryption_at_rest"]
     assert "enabled" in enc_block
+    assert "status" in enc_block
     assert "cipher" in enc_block
+    assert status["encryption_status"] in ("ON", "OFF")
+    assert "ON" in enc_block["status"] or "OFF" in enc_block["status"]
 
     # 8. Methodology & Assumptions
     assert "methodology" in status

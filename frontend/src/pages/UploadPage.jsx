@@ -95,6 +95,19 @@ export default function UploadPage() {
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
+  const handleLoadDemo = async (demoType) => {
+    setError(null);
+    setLoading(true);
+    try {
+      const data = await statementApi.loadDemoStatement(demoType);
+      setParseResult(data);
+    } catch (err) {
+      setError(err.response?.data?.detail || err.message || "Failed to load demo statement.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="max-w-6xl mx-auto px-4 py-8 space-y-8">
       {/* Header */}
@@ -151,6 +164,88 @@ export default function UploadPage() {
               <span className="px-2 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700">Client-Side Memory Shield</span>
               <span>•</span>
               <span>Files deleted immediately after parsing</span>
+            </div>
+          </div>
+
+          {/* Quick Demo Evaluation Datasets */}
+          <div className="bg-slate-900/60 border border-slate-800 rounded-3xl p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Zap className="w-5 h-5 text-indigo-400" />
+                <h3 className="text-sm font-bold text-white">Instant Hackathon Demo Datasets</h3>
+              </div>
+              <span className="text-[11px] text-slate-400">Pre-generated 6-month synthetic statements</span>
+            </div>
+
+            <p className="text-xs text-slate-400">
+              Test parsing, double-entry ledger validation, categorization, and forecasting with one click:
+            </p>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 pt-1">
+              <button
+                type="button"
+                disabled={loading}
+                onClick={() => handleLoadDemo('hdfc')}
+                className="p-3 bg-slate-800/80 hover:bg-slate-700/80 border border-slate-700 rounded-xl text-left transition space-y-1 group"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-white group-hover:text-indigo-300">HDFC CSV</span>
+                  <span className="text-[10px] text-slate-400 uppercase">6 Mos</span>
+                </div>
+                <p className="text-[10px] text-slate-400">Narration, Chq/Ref, Withdrawals, Deposits</p>
+              </button>
+
+              <button
+                type="button"
+                disabled={loading}
+                onClick={() => handleLoadDemo('sbi')}
+                className="p-3 bg-slate-800/80 hover:bg-slate-700/80 border border-slate-700 rounded-xl text-left transition space-y-1 group"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-white group-hover:text-indigo-300">SBI CSV</span>
+                  <span className="text-[10px] text-slate-400 uppercase">6 Mos</span>
+                </div>
+                <p className="text-[10px] text-slate-400">Txn Date, Particulars, Ref, Debit, Credit</p>
+              </button>
+
+              <button
+                type="button"
+                disabled={loading}
+                onClick={() => handleLoadDemo('generic')}
+                className="p-3 bg-slate-800/80 hover:bg-slate-700/80 border border-slate-700 rounded-xl text-left transition space-y-1 group"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-white group-hover:text-indigo-300">Generic CSV</span>
+                  <span className="text-[10px] text-slate-400 uppercase">Standard</span>
+                </div>
+                <p className="text-[10px] text-slate-400">Standard ledger format with 5 columns</p>
+              </button>
+
+              <button
+                type="button"
+                disabled={loading}
+                onClick={() => handleLoadDemo('pdf')}
+                className="p-3 bg-slate-800/80 hover:bg-slate-700/80 border border-slate-700 rounded-xl text-left transition space-y-1 group"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-white group-hover:text-indigo-300">Statement PDF</span>
+                  <span className="text-[10px] text-emerald-400 uppercase font-semibold">Tabular</span>
+                </div>
+                <p className="text-[10px] text-slate-400">Multi-page National Bank of India PDF</p>
+              </button>
+
+              <button
+                type="button"
+                disabled={loading}
+                onClick={() => handleLoadDemo('broken')}
+                className="p-3 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 rounded-xl text-left transition space-y-1 group"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-rose-300 group-hover:text-rose-200">Broken CSV</span>
+                  <span className="text-[10px] text-rose-400 uppercase font-bold">Audit Demo</span>
+                </div>
+                <p className="text-[10px] text-rose-300/70">Deliberate math errors, invalid dates, duplicates</p>
+              </button>
             </div>
           </div>
         </div>

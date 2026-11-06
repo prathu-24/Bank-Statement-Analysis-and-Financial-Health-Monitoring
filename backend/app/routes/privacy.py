@@ -47,3 +47,4 @@ def get_privacy_status(db: Session = Depends(get_db)):
         "current_stored_transactions": tx_count,
         "temporary_file_retention": "0s (In-memory stream processing)"
     }
+

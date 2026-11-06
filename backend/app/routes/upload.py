@@ -166,3 +166,69 @@ async def confirm_and_save(transactions: List[NormalizedTransaction], db: Sessio
         "message": f"Successfully committed {len(db_models)} transactions to database."
     }
 
+@router.post("/demo/{demo_type}", response_model=ParseResult)
+async def load_demo_statement(demo_type: str, db: Session = Depends(get_db)):
+    """
+    Instantly loads and validates one of the 5 reproducible synthetic demo statements.
+    demo_type: 'hdfc', 'sbi', 'generic', 'pdf', 'broken'
+    """
+    import os
+    base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+    demo_dir = os.path.join(base_dir, "demo_data")
+
+    filename_map = {
+        "hdfc": "hdfc_sample.csv",
+        "sbi": "sbi_sample.csv",
+        "generic": "generic_sample.csv",
+        "pdf": "sample_statement.pdf",
+        "broken": "broken_sample.csv"
+    }
+
+    if demo_type.lower() not in filename_map:
+        raise HTTPException(status_code=404, detail=f"Unknown demo type '{demo_type}'. Choose from {list(filename_map.keys())}.")
+
+    file_name = filename_map[demo_type.lower()]
+    file_path = os.path.join(demo_dir, file_name)
+
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail=f"Demo file not found at {file_path}. Please run generate_demo_data.py first.")
+
+    with open(file_path, "rb") as f:
+        content = f.read()
+
+    fmt, confidence, headers, samples = detect_format(content, file_name)
+
+    parser = None
+    if fmt == 'hdfc':
+        parser = HDFCParser()
+    elif fmt == 'sbi':
+        parser = SBIParser()
+    elif fmt == 'pdf':
+        parser = PDFParser()
+    else:
+        parser = GenericCSVParser()
+
+    transactions = parser.parse(content, file_name)
+
+    overrides = {o.merchant_pattern: o.category for o in db.query(CategoryOverrideModel).all()}
+    for tx in transactions:
+        tx.category = TransactionCategorizer.categorize(
+            tx.description,
+            credit=tx.credit,
+            debit=tx.debit,
+            user_overrides=overrides
+        )
+
+    validation_report = StatementValidator.validate(transactions)
+
+    return ParseResult(
+        filename=file_name,
+        detected_format=fmt,
+        confidence=confidence,
+        detected_headers=headers,
+        sample_rows=samples,
+        needs_mapping=False,
+        transactions=transactions,
+        validation_report=validation_report.model_dump()
+    )
+

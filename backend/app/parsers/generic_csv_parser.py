@@ -70,11 +70,16 @@ class GenericCSVParser(BaseParser):
         transactions: List[NormalizedTransaction] = []
 
         for idx, row in df.iterrows():
-            raw_date = row.get(date_col) if date_col in df.columns else None
+            raw_date = str(row.get(date_col, '')).strip() if date_col in df.columns else ""
             parsed_date = self.parse_date(raw_date, custom_format=date_format)
 
             if not parsed_date:
-                continue
+                # If a date was provided but invalid/unrecognized, do not discard silently;
+                # pass the raw string so StatementValidator can audit and flag INVALID_DATE.
+                if raw_date and raw_date.lower() not in ('nan', 'none', '-', '', 'null'):
+                    parsed_date = raw_date
+                else:
+                    continue
 
             desc = str(row.get(desc_col, '')).strip() if desc_col in df.columns else "Transaction"
             if not desc or desc.lower() == 'nan':

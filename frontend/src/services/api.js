@@ -19,6 +19,11 @@ export const statementApi = {
     return response.data;
   },
 
+  loadDemoStatement: async (demoType) => {
+    const response = await api.post(`/upload/demo/${demoType}`);
+    return response.data;
+  },
+
   uploadWithMapping: async (file, mapping) => {
     const formData = new FormData();
     formData.append('file', file);

@@ -16,11 +16,11 @@ class BaseParser(ABC):
         pass
 
     @classmethod
-    def clean_amount(cls, value: Any) -> float:
+    def clean_amount(cls, value: Any, allow_negative: bool = True) -> float:
         """
         Cleans and normalizes monetary values.
         Handles currency symbols, thousands separators (commas), CR/DR tags, whitespace.
-        Returns positive float (direction is determined by credit/debit column).
+        If allow_negative is True, preserves negative sign if present so validator can catch malformed data.
         """
         if value is None:
             return 0.0
@@ -29,13 +29,19 @@ class BaseParser(ABC):
         if not val_str or val_str.lower() in ('nan', 'none', '-', '', 'null'):
             return 0.0
 
+        is_negative = '-' in val_str
+
         # Remove currency symbols (₹, $, Rs., etc.) and commas
         cleaned = re.sub(r'[₹$€£\s,]|(?:rs\.?)|(?:inr)', '', val_str, flags=re.IGNORECASE)
         # Handle Cr / Dr suffix if present
         cleaned = re.sub(r'(?:cr|dr)\.?$', '', cleaned, flags=re.IGNORECASE).strip()
+        # Remove any stray dashes except leading minus
+        cleaned = re.sub(r'[^\d.-]', '', cleaned)
 
         try:
             val = float(cleaned)
+            if is_negative and allow_negative:
+                return -abs(val)
             return abs(val)
         except ValueError:
             return 0.0

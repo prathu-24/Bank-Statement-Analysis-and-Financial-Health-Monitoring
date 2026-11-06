@@ -10,6 +10,7 @@ from app.schemas.transaction import NormalizedTransaction, ColumnMapping, ParseR
 from app.parsers import detect_format, HDFCParser, SBIParser, GenericCSVParser, PDFParser
 from app.services.validator import StatementValidator
 from app.services.categorizer import TransactionCategorizer
+from app.services.sanitizer import DataSanitizer
 
 router = APIRouter(prefix="/api/upload", tags=["Upload & Parsing"])
 
@@ -132,11 +133,13 @@ async def confirm_and_save(transactions: List[NormalizedTransaction], db: Sessio
 
     db_models = []
     for tx in transactions:
-        merchant = TransactionCategorizer.extract_normalized_merchant(tx.description)
+        masked_desc = DataSanitizer.mask_sensitive_data(tx.description)
+        masked_ref = DataSanitizer.mask_sensitive_data(tx.reference_id) if tx.reference_id else None
+        merchant = TransactionCategorizer.extract_normalized_merchant(masked_desc)
         cat = tx.category
         if not cat or cat == "Uncategorized":
             cat = TransactionCategorizer.categorize(
-                tx.description,
+                masked_desc,
                 credit=tx.credit,
                 debit=tx.debit,
                 user_overrides=overrides
@@ -144,13 +147,13 @@ async def confirm_and_save(transactions: List[NormalizedTransaction], db: Sessio
 
         model = TransactionModel(
             date=tx.date,
-            description=tx.description,
+            description=masked_desc,
             normalized_merchant=merchant,
             debit=tx.debit,
             credit=tx.credit,
             balance=tx.balance,
             category=cat or "Uncategorized",
-            reference_id=tx.reference_id
+            reference_id=masked_ref
         )
         db_models.append(model)
 

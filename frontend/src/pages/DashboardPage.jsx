@@ -193,7 +193,14 @@ export default function DashboardPage() {
             </div>
           </div>
           <div className="mt-3 flex items-baseline justify-between">
-            <span className="text-2xl font-bold text-white">{formatINR(kpi.total_expense)}</span>
+            <div className="flex items-baseline gap-2">
+              <span className="text-2xl font-bold text-white">{formatINR(kpi.total_expense)}</span>
+              {kpi.unconfirmed_review_count > 0 && (
+                <span className="text-[10px] font-semibold text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20" title={`${kpi.unconfirmed_review_count} unconfirmed transactions pending review excluded from provable total`}>
+                  {formatINR(kpi.provable_expense)} provable
+                </span>
+              )}
+            </div>
             <button
               onClick={() => setEvidenceDrawer({
                 open: true,

@@ -76,6 +76,11 @@ export const statementApi = {
     return response.data;
   },
 
+  confirmTransaction: async (id) => {
+    const response = await api.post(`/transactions/${id}/confirm`);
+    return response.data;
+  },
+
   getDashboardSummary: async (month = null) => {
     const response = await api.get('/dashboard/summary', { params: { month } });
     return response.data;

@@ -44,6 +44,17 @@ export default function TransactionsPage() {
   const [applyToAll, setApplyToAll] = useState(false);
   const [updating, setUpdating] = useState(false);
 
+  const handleConfirmTx = async (txId) => {
+    try {
+      await statementApi.confirmTransaction(txId);
+      setTransactions((prev) =>
+        prev.map((t) => (t.id === txId ? { ...t, is_low_confidence: false, user_confirmed: true } : t))
+      );
+    } catch (err) {
+      alert("Failed to confirm transaction: " + (err.response?.data?.detail || err.message));
+    }
+  };
+
   useEffect(() => {
     fetchTransactions();
     fetchCategories();
@@ -203,17 +214,29 @@ export default function TransactionsPage() {
                       </div>
                     </td>
                     <td className="px-4 py-3">
-                      <button
-                        onClick={() => openEditCategory(tx)}
-                        className={`group inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold transition ${
-                          tx.user_overridden
-                            ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
-                            : 'bg-indigo-500/10 text-indigo-300 border border-indigo-500/20 hover:border-indigo-500/40'
-                        }`}
-                      >
-                        {tx.category}
-                        <Edit2 className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
-                      </button>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <button
+                          onClick={() => openEditCategory(tx)}
+                          className={`group inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold transition ${
+                            tx.user_overridden
+                              ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                              : 'bg-indigo-500/10 text-indigo-300 border border-indigo-500/20 hover:border-indigo-500/40'
+                          }`}
+                        >
+                          {tx.category}
+                          <Edit2 className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+                        </button>
+                        {tx.is_low_confidence && !tx.user_confirmed && !tx.user_overridden && (
+                          <button
+                            onClick={() => handleConfirmTx(tx.id)}
+                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold bg-amber-500/15 text-amber-300 border border-amber-500/30 hover:bg-emerald-500/20 hover:text-emerald-300 hover:border-emerald-500/40 transition"
+                            title="Click to confirm category into provable totals"
+                          >
+                            <HelpCircle className="w-2.5 h-2.5" />
+                            Review
+                          </button>
+                        )}
+                      </div>
                     </td>
                     <td className="px-4 py-3 text-right font-mono font-medium whitespace-nowrap text-rose-400">
                       {tx.debit > 0 ? `-${formatINR(tx.debit)}` : '-'}

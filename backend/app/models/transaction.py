@@ -19,5 +19,7 @@ class TransactionModel(Base):
     source_row = Column(Integer, nullable=True)
     raw_text = Column(String, nullable=True, default="")
     extraction_confidence = Column(Float, default=1.0)
+    is_low_confidence = Column(Boolean, default=False)
+    user_confirmed = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.utcnow)
 

@@ -79,6 +79,19 @@ def get_dashboard_summary(
 
     total_income = round(sum(tx.credit for tx in scope_txs), 2)
     total_expense = round(sum(tx.debit for tx in scope_txs), 2)
+
+    # Uncertainty handling: Low-confidence transactions flagged for review are excluded from provable totals
+    provable_txs = [
+        tx for tx in scope_txs
+        if not (getattr(tx, "is_low_confidence", False) and not getattr(tx, "user_confirmed", False) and not getattr(tx, "user_overridden", False))
+    ]
+    unconfirmed_review_txs = [
+        tx for tx in scope_txs
+        if (getattr(tx, "is_low_confidence", False) and not getattr(tx, "user_confirmed", False) and not getattr(tx, "user_overridden", False))
+    ]
+    provable_expense = round(sum(tx.debit for tx in provable_txs), 2)
+    unconfirmed_review_expense = round(sum(tx.debit for tx in unconfirmed_review_txs), 2)
+
     net_savings = round(total_income - total_expense, 2)
     savings_rate = round((net_savings / total_income * 100), 1) if total_income > 0 else 0.0
     latest_balance = round(scope_txs[-1].balance if scope_txs else 0.0, 2)
@@ -150,6 +163,9 @@ def get_dashboard_summary(
         "kpi": {
             "total_income": total_income,
             "total_expense": total_expense,
+            "provable_expense": provable_expense,
+            "unconfirmed_review_expense": unconfirmed_review_expense,
+            "unconfirmed_review_count": len(unconfirmed_review_txs),
             "net_savings": net_savings,
             "savings_rate": savings_rate,
             "current_balance": latest_balance,

@@ -61,10 +61,33 @@ def list_transactions(
                 "balance": t.balance,
                 "category": t.category,
                 "user_overridden": t.user_overridden,
-                "reference_id": t.reference_id
+                "reference_id": t.reference_id,
+                "is_low_confidence": getattr(t, "is_low_confidence", False),
+                "user_confirmed": getattr(t, "user_confirmed", False)
             }
             for t in txs
         ]
+    }
+
+@router.post("/{tx_id}/confirm")
+def confirm_transaction(tx_id: int, db: Session = Depends(get_db)):
+    """
+    Confirms an unconfirmed or low-confidence transaction, certifying it into provable totals.
+    """
+    tx = db.query(TransactionModel).filter(TransactionModel.id == tx_id).first()
+    if not tx:
+        raise HTTPException(status_code=404, detail="Transaction not found.")
+
+    tx.user_confirmed = True
+    tx.is_low_confidence = False
+    db.commit()
+
+    return {
+        "status": "success",
+        "message": f"Transaction #{tx_id} confirmed by user and incorporated into provable totals.",
+        "transaction_id": tx_id,
+        "is_low_confidence": False,
+        "user_confirmed": True
     }
 
 @router.patch("/{tx_id}/category")
@@ -83,6 +106,8 @@ def update_transaction_category(
 
     tx.category = payload.category
     tx.user_overridden = True
+    tx.user_confirmed = True
+    tx.is_low_confidence = False
 
     merchant = tx.normalized_merchant or TransactionCategorizer.extract_normalized_merchant(tx.description)
     tx.normalized_merchant = merchant
@@ -113,6 +138,8 @@ def update_transaction_category(
         for m in matches:
             m.category = payload.category
             m.user_overridden = True
+            m.user_confirmed = True
+            m.is_low_confidence = False
         
         updated_count = len(matches)
 

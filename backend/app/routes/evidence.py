@@ -69,12 +69,25 @@ def get_figure_evidence(
     total_credit = round(sum(r.credit for r in rows), 2)
     computed_sum = total_credit if "income" in metric_lower else total_debit
 
+    # Uncertainty handling: Low-confidence transactions flagged for review are tracked separately from provable totals
+    provable_rows = [
+        r for r in rows
+        if not (getattr(r, "is_low_confidence", False) and not getattr(r, "user_confirmed", False) and not getattr(r, "user_overridden", False))
+    ]
+    unconfirmed_rows = [
+        r for r in rows
+        if (getattr(r, "is_low_confidence", False) and not getattr(r, "user_confirmed", False) and not getattr(r, "user_overridden", False))
+    ]
+    provable_sum = round(sum(r.credit if "income" in metric_lower else r.debit for r in provable_rows), 2)
+    unconfirmed_sum = round(sum(r.credit if "income" in metric_lower else r.debit for r in unconfirmed_rows), 2)
+
     avg_confidence = round(
         sum(r.extraction_confidence or 1.0 for r in rows) / len(rows), 2
     ) if rows else 1.0
 
     contributing_txs = []
     for r in rows:
+        needs_review = bool(getattr(r, "is_low_confidence", False) and not getattr(r, "user_confirmed", False) and not getattr(r, "user_overridden", False))
         contributing_txs.append({
             "id": r.id,
             "date": r.date,
@@ -88,7 +101,11 @@ def get_figure_evidence(
             "source_row": r.source_row,
             "raw_text": r.raw_text or f"{r.date} | {r.description} | {r.debit or r.credit} | {r.balance}",
             "extraction_confidence": r.extraction_confidence if r.extraction_confidence is not None else 1.0,
-            "is_tampered_or_drifted": (r.extraction_confidence or 1.0) < 0.90
+            "is_tampered_or_drifted": (r.extraction_confidence or 1.0) < 0.90,
+            "is_provable": not needs_review,
+            "needs_review": needs_review,
+            "is_low_confidence": getattr(r, "is_low_confidence", False),
+            "user_confirmed": getattr(r, "user_confirmed", False)
         })
 
     return {
@@ -101,6 +118,9 @@ def get_figure_evidence(
         },
         "count": len(rows),
         "computed_sum": computed_sum,
+        "provable_sum": provable_sum,
+        "unconfirmed_review_sum": unconfirmed_sum,
+        "unconfirmed_review_count": len(unconfirmed_rows),
         "total_debit": total_debit,
         "total_credit": total_credit,
         "average_confidence": avg_confidence,

@@ -285,11 +285,13 @@ class TransactionCategorizer:
         for tx in transactions:
             if not tx.user_overridden:
                 tx.normalized_merchant = cls.extract_normalized_merchant(tx.description)
-                cat, _ = cls.categorize_with_confidence(
+                cat, conf = cls.categorize_with_confidence(
                     tx.description,
                     credit=tx.credit,
                     debit=tx.debit,
                     user_overrides=overrides
                 )
                 tx.category = "Uncategorized" if cat == "Uncategorized – review" else cat
+                if hasattr(tx, "is_low_confidence") and not getattr(tx, "user_confirmed", False):
+                    tx.is_low_confidence = (conf < 0.70 or cat == "Uncategorized – review" or cat == "Uncategorized")
         db.commit()

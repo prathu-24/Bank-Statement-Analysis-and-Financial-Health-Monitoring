@@ -273,7 +273,11 @@ class CashFlowForecaster:
         transactions: List[TransactionModel],
         days: int = 30,
         n_paths: int = 2000,
-        seed: int = 42
+        seed: int = 42,
+        starting_balance_delta: float = 0.0,
+        exclude_merchants: Optional[List[str]] = None,
+        shift_merchants: Optional[Dict[str, int]] = None,
+        discretionary_scale: float = 1.0
     ) -> Dict[str, Any]:
         """
         Multi-path Monte Carlo Cash-Flow Simulation.
@@ -297,7 +301,7 @@ class CashFlowForecaster:
         sorted_txs = sorted(transactions, key=lambda x: (x.date, x.id))
         latest_tx = sorted_txs[-1]
         start_date = datetime.strptime(latest_tx.date, "%Y-%m-%d")
-        current_balance = float(latest_tx.balance)
+        current_balance = float(latest_tx.balance) + starting_balance_delta
 
         # 1. Recurring Debits Detection
         recurring_commitments = RecurringPaymentDetector.detect(sorted_txs)
@@ -359,7 +363,7 @@ class CashFlowForecaster:
 
             # A. Sample Discretionary Burn per Path
             spend_pool = weekday_spends[wday] if len(weekday_spends[wday]) >= 3 else all_daily_spends
-            sampled_discretionary = rng.choice(spend_pool, size=n_paths, replace=True)
+            sampled_discretionary = rng.choice(spend_pool, size=n_paths, replace=True) * discretionary_scale
 
             # B. Income events on this day
             income_inflows = np.zeros(n_paths, dtype=np.float64)
@@ -381,12 +385,16 @@ class CashFlowForecaster:
             # C. Recurring debits on this day with jitter
             recurring_outflows = np.zeros(n_paths, dtype=np.float64)
             for rec in recurring_commitments:
+                if exclude_merchants and rec["merchant"] in exclude_merchants:
+                    continue
+
+                shift_k = (shift_merchants or {}).get(rec["merchant"], 0)
                 last_dt = datetime.strptime(rec["last_date"], "%Y-%m-%d")
                 cycle = rec.get("cycle_days", 30)
                 mean_amt = rec["average_amount"]
 
-                # Check occurrences
-                curr_dt = last_dt + timedelta(days=cycle)
+                # Check occurrences with optional shift
+                curr_dt = last_dt + timedelta(days=cycle + shift_k)
                 while curr_dt <= horizon_end:
                     days_diff = (curr_dt - target_date).days
                     if abs(days_diff) <= 2:

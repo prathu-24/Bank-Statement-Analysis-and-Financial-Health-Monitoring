@@ -13,15 +13,20 @@ import {
   Info,
   ShieldCheck,
   Activity,
-  History
+  History,
+  Zap,
+  Sliders,
+  CheckCircle2
 } from 'lucide-react';
 import {
   ResponsiveContainer,
   AreaChart,
   Area,
+  Line,
   XAxis,
   YAxis,
   Tooltip,
+  Legend,
   ReferenceLine,
   CartesianGrid
 } from 'recharts';
@@ -31,6 +36,8 @@ import HealthScoreCard from '../components/health/HealthScoreCard';
 export default function ForecastPage() {
   const [loading, setLoading] = useState(true);
   const [forecast, setForecast] = useState(null);
+  const [actionsData, setActionsData] = useState(null);
+  const [selectedAction, setSelectedAction] = useState(null);
   const [horizonDays, setHorizonDays] = useState(30);
   const [viewMode, setViewMode] = useState('PROBABILISTIC'); // 'PROBABILISTIC' or 'DETERMINISTIC'
   const [whyModal, setWhyModal] = useState({ open: false, title: '', content: '' });
@@ -42,10 +49,20 @@ export default function ForecastPage() {
   const fetchForecast = async (days) => {
     setLoading(true);
     try {
-      const data = await statementApi.getCashFlowForecast(days);
+      const [data, actions] = await Promise.all([
+        statementApi.getCashFlowForecast(days),
+        statementApi.getCounterfactualActions(days)
+      ]);
       setForecast(data);
+      setActionsData(actions);
+      // Select top action by default if available
+      if (actions?.actions?.length > 0) {
+        setSelectedAction(actions.actions[0]);
+      } else {
+        setSelectedAction(null);
+      }
     } catch (err) {
-      console.error("Forecast fetch error:", err);
+      console.error("Forecast / Actions fetch error:", err);
     } finally {
       setLoading(false);
     }
@@ -86,6 +103,11 @@ export default function ForecastPage() {
 
   const probDistribution = probabilistic?.daily_distribution || [];
   const riskMetrics = probabilistic?.risk_metrics || {};
+
+  const augmentedProbDistribution = probDistribution.map((item, idx) => ({
+    ...item,
+    action_p50: selectedAction?.daily_p50_after?.[idx] ?? null
+  }));
 
   return (
     <div className="space-y-8 max-w-7xl mx-auto">
@@ -330,7 +352,7 @@ export default function ForecastPage() {
         <div className="h-80 w-full pt-4">
           <ResponsiveContainer width="100%" height="100%">
             {viewMode === 'PROBABILISTIC' && probDistribution.length > 0 ? (
-              <AreaChart data={probDistribution} margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
+              <AreaChart data={augmentedProbDistribution} margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
                 <defs>
                   <linearGradient id="p50Grad" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="#6366f1" stopOpacity={0.4} />
@@ -349,6 +371,7 @@ export default function ForecastPage() {
                   formatter={(val, name) => [formatINR(val), name]}
                   labelFormatter={(lbl) => `Date: ${lbl}`}
                 />
+                <Legend wrapperStyle={{ fontSize: 11, paddingTop: 8 }} />
                 <ReferenceLine y={3000} stroke="#f59e0b" strokeDasharray="3 3" label={{ value: "Safety Floor (₹3,000)", fill: "#f59e0b", fontSize: 10, position: "insideBottomRight" }} />
                 <ReferenceLine y={0} stroke="#ef4444" strokeWidth={1.5} label={{ value: "Zero (Shortage)", fill: "#ef4444", fontSize: 10, position: "insideTopRight" }} />
                 
@@ -368,12 +391,25 @@ export default function ForecastPage() {
                 <Area
                   type="monotone"
                   dataKey="p50"
-                  name="Median Path (p50)"
+                  name="Baseline Median (p50)"
                   stroke="#6366f1"
                   strokeWidth={3}
                   fillOpacity={1}
                   fill="url(#p50Grad)"
                 />
+
+                {/* Counterfactual Simulated Intervention Path */}
+                {selectedAction && (
+                  <Line
+                    type="monotone"
+                    dataKey="action_p50"
+                    name={`Intervention: ${selectedAction.target} (p50)`}
+                    stroke="#10b981"
+                    strokeWidth={3}
+                    strokeDasharray="4 4"
+                    dot={false}
+                  />
+                )}
 
                 {/* p10 Conservative lower envelope */}
                 <Area
@@ -417,6 +453,129 @@ export default function ForecastPage() {
           </ResponsiveContainer>
         </div>
       </div>
+
+      {/* Counterfactual Action Engine: Ranked Interventions */}
+      {actionsData?.actions?.length > 0 && (
+        <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-6 shadow-sm space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="p-1.5 rounded-lg bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                  <Zap className="w-4 h-4" />
+                </span>
+                <h3 className="text-base font-bold text-white">
+                  Counterfactual Decision Engine (Ranked by Risk Reduction)
+                </h3>
+              </div>
+              <p className="text-xs text-slate-400 mt-1">
+                Deterministic what-if interventions evaluated by re-running the exact same 1,500 Monte Carlo paths (seed: 42).
+              </p>
+            </div>
+
+            <button
+              onClick={() => setWhyModal({
+                open: true,
+                title: 'Counterfactual Engine Methodology',
+                content: actionsData.methodology || 'Reruns the exact Monte Carlo paths under a fixed random seed with one variable altered (e.g. pausing a subscription or shifting a payment date). The difference is purely the intervention treatment effect.'
+              })}
+              className="text-xs text-indigo-400 hover:text-indigo-300 flex items-center gap-1 font-medium"
+            >
+              <HelpCircle className="w-3.5 h-3.5" />
+              Ranking Methodology
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pt-2">
+            {actionsData.actions.map((act, idx) => {
+              const isSelected = selectedAction?.id === act.id;
+              return (
+                <div
+                  key={act.id}
+                  className={`p-4 rounded-2xl border transition flex flex-col justify-between ${
+                    isSelected
+                      ? 'bg-emerald-950/20 border-emerald-500 shadow-md shadow-emerald-500/10'
+                      : 'bg-slate-950/60 border-slate-800/80 hover:border-slate-700'
+                  }`}
+                >
+                  <div className="space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-800 text-slate-300">
+                        #{idx + 1} Best ROI
+                      </span>
+                      <span className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded ${
+                        act.action_type === 'SHIFT_DATE' ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30' :
+                        act.action_type === 'PAUSE_RECURRING' ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30' :
+                        act.action_type === 'CAP_CATEGORY' ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30' :
+                        'bg-purple-500/20 text-purple-300 border border-purple-500/30'
+                      }`}>
+                        {act.action_type.replace('_', ' ')}
+                      </span>
+                    </div>
+
+                    <h4 className="text-sm font-bold text-white">{act.title}</h4>
+                    <p className="text-xs text-slate-300 leading-relaxed">{act.description}</p>
+                  </div>
+
+                  <div className="mt-4 pt-3 border-t border-slate-800/80 space-y-3">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-slate-400">Monthly Sacrifice:</span>
+                      <span className="font-semibold text-white font-mono">
+                        {act.monthly_sacrifice === 0 ? (
+                          <span className="text-emerald-400">₹0 (Timing Only)</span>
+                        ) : (
+                          `₹${act.monthly_sacrifice?.toLocaleString('en-IN')}/mo`
+                        )}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-slate-400">Pre-Payday Risk:</span>
+                      <div className="flex items-center gap-1.5 font-mono">
+                        <span className="text-slate-400 line-through">{act.risk_before}%</span>
+                        <span className="text-slate-300">&rarr;</span>
+                        <span className="font-bold text-emerald-400">{act.risk_after}%</span>
+                        {act.risk_reduction > 0 && (
+                          <span className="text-[10px] px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-300 font-semibold">
+                            -{act.risk_reduction}%
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={() => {
+                        if (isSelected) {
+                          setSelectedAction(null);
+                        } else {
+                          setSelectedAction(act);
+                          setViewMode('PROBABILISTIC');
+                        }
+                      }}
+                      className={`w-full py-2 px-3 text-xs font-semibold rounded-xl flex items-center justify-center gap-1.5 transition ${
+                        isSelected
+                          ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/30'
+                          : 'bg-slate-800 hover:bg-slate-700 text-slate-200'
+                      }`}
+                    >
+                      {isSelected ? (
+                        <>
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                          Overlay Active on Chart
+                        </>
+                      ) : (
+                        <>
+                          <Sliders className="w-3.5 h-3.5" />
+                          Simulate & Overlay Trajectory
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Assumptions & Milestone Timeline */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models.transaction import TransactionModel
 from app.services.forecast import CashFlowForecaster
+from app.services.counterfactual import CounterfactualActionEngine
 
 router = APIRouter(prefix="/api/forecast", tags=["Cash-Flow Forecasting"])
 
@@ -58,4 +59,18 @@ def get_forecast_backtest(
     """
     transactions = db.query(TransactionModel).order_by(TransactionModel.date.asc()).all()
     return CashFlowForecaster.backtest_forecast(transactions, holdout_days=holdout_days, seed=seed)
+
+@router.get("/actions")
+def get_counterfactual_actions(
+    days: int = Query(30, ge=7, le=90, description="Simulation horizon"),
+    seed: int = Query(42, description="Random seed"),
+    db: Session = Depends(get_db)
+):
+    """
+    Counterfactual Action Engine:
+    Evaluates actions (pause subscriptions, shift payment dates, cap discretionary categories, buffer transfer).
+    Reruns probabilistic forecast with identical seed and ranks by risk reduction per rupee.
+    """
+    transactions = db.query(TransactionModel).order_by(TransactionModel.date.asc()).all()
+    return CounterfactualActionEngine.evaluate_actions(transactions, days=days, seed=seed)
 

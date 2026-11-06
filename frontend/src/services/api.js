@@ -97,6 +97,11 @@ export const statementApi = {
     return response.data;
   },
 
+  getCounterfactualActions: async (days = 30, seed = 42) => {
+    const response = await api.get('/forecast/actions', { params: { days, seed } });
+    return response.data;
+  },
+
   getInsights: async () => {
     const response = await api.get('/insights');
     return response.data;

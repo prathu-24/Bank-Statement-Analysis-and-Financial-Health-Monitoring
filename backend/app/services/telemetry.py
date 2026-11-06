@@ -25,3 +25,4 @@ class NetworkTracker:
     def reset(cls):
         cls._outbound_calls = 0
         cls._destinations = []
+

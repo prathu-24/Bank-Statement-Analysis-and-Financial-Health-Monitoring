@@ -164,3 +164,4 @@ def test_delete_all_user_data_purge(privacy_db):
     assert privacy_db.query(TransactionModel).count() == 0
     assert privacy_db.query(CategoryOverrideModel).count() == 0
     assert privacy_db.query(AlertModel).count() == 0
+

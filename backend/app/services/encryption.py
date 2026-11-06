@@ -59,3 +59,4 @@ class DataEncryptionService:
             return f.decrypt(token).decode("utf-8")
         except (InvalidToken, Exception):
             return str_val
+

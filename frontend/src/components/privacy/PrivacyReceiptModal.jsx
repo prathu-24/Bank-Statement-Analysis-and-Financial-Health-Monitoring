@@ -241,3 +241,4 @@ export default function PrivacyReceiptModal({ isOpen, onClose, onDataPurged }) {
     </div>
   );
 }
+

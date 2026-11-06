@@ -1,108 +1,128 @@
 # FinSight: AI-Based Bank Statement Intelligence & Financial Health Analyzer
 
 > **Problem Statement:** PS-04 – Fintech  
-> **Target Audience:** Engineering evaluators, hackathon judges, fintech architects, and end users seeking explainable, privacy-first personal financial intelligence.
+> **Core Pillars:** **Provable** (source-linked evidence & ledger validation) &bull; **Predictive** (probabilistic Monte Carlo forecasts & counterfactual action engine) &bull; **Private** (verifiable zero-telemetry receipt & hardware-local processing).
 
 ---
 
 ## 1. Project Overview
 
-**FinSight** is a secure, explainable personal financial intelligence platform designed to ingest raw bank statements in CSV or PDF formats and automatically:
-1. **Extract & Validate:** Reconciles double-entry ledger balance math ($\text{Balance}_{t-1} + \text{Credit}_t - \text{Debit}_t \approx \text{Balance}_t$), flagging duplicates, format anomalies, and balance inconsistencies without discarding data.
-2. **Intelligent Categorization:** Deterministically classifies transactions across 11 spending and income categories using Indian merchant heuristics (UPI, POS, NEFT/IMPS, Swiggy, Zomato, Uber, Netflix, etc.) with learned user category overrides.
-3. **Recurring Commitment & Subscription Audit:** Detects repeating outlays (Weekly, Monthly, Yearly), differentiates EMIs from digital subscriptions, and flags **potentially forgotten subscriptions** with quantified annual savings.
-4. **Explainable Outlier Detection ("Unusual - Please Review"):** Utilizes IQR (Interquartile Range) and category-specific Z-scores to identify statistical expenditure anomalies with an in-place "This was me" dismissal action that never alters immutable records.
-5. **Transparent 100-Point Financial Health Score:** Provides mathematical scoring across 5 key pillars (Savings Rate, Expense Stability, Debt-to-Income, Low-Balance Liquidity, and Outlier Activity) with complete formula disclosure.
-6. **Early Financial Distress Detection:** Detects accelerated savings contraction, debt-service pressure, and spending growth outpacing income.
-7. **30-Day Predictive Cash-Flow Forecaster:** Simulates daily liquidity starting from the verified closing balance, trailing discretionary burn rates, detected recurring obligations, and scheduled paydays to highlight impending crunch dates.
-8. **Actionable Suggestions & 50/30/20 Budgeting:** Computes exact monthly and annual savings levers (e.g. 20% food delivery trim, payment date alignment post-salary).
-9. **Explainable AI Executive Overview:** Operates 100% offline via deterministic rule-based executive summarization with zero cloud dependencies or mandatory API keys.
+**FinSight** is an explainable personal financial intelligence platform designed to ingest raw bank statements in CSV or PDF formats and transform them into a **provable, predictive, and private** financial operating system.
+
+### The 3 Core Pillars:
+1. **Provable (Ledger Reconciliation & Click-to-Audit Provenance):**
+   - **Double-Entry Statement Reconciliation:** Enforces the fundamental balance equation:  
+     $$\text{Opening Balance} + \sum \text{Credits} - \sum \text{Debits} = \text{Closing Balance} \quad (\pm ₹1.00 \text{ tolerance})$$
+   - **Click-to-Audit Evidence Drawers:** Every dashboard KPI, spending total, and recurring commitment links directly to its contributing source transaction rows, raw statement text, page number, and extraction confidence score.
+2. **Predictive (Probabilistic Monte Carlo & Counterfactual Engine):**
+   - **2,000-Path Monte Carlo Fan Chart:** Replaces deterministic single-line curves with stratified weekday burn bootstrap, recurring cadence variance ($\pm 2$ days), $p10 \le p50 \le p90$ balance envelopes, and pre-payday shortage probabilities.
+   - **Walk-Forward Holdout Backtesting:** 30-day holdout evaluation verifying 80% theoretical prediction interval coverage (~83.3% empirical coverage).
+   - **Counterfactual Action Engine:** Evaluates intervention levers (pausing recurring items, shifting debit dates by $+5$ days, capping discretionary categories) under the exact same random seed (42), guaranteeing that the top action reduces risk per rupee of sacrifice.
+   - **Debt-Spiral Risk Radar:** Multi-dimensional weighted risk engine tracking borrow-to-repay loops, balance floor decay, post-salary buffer exhaustion, mandate penalty charges, and fixed obligation income shares with strict non-verdict "Elevated Risk Indicator" wording.
+3. **Private (Verifiable Zero-Telemetry Privacy Receipt):**
+   - **Hardware-Local Processing:** 100% of parsing, statistical scoring, Monte Carlo simulations, and categorizations execute on host hardware.
+   - **PII Neutralization:** Regex PII masking for bank account numbers, credit/debit cards, PAN cards, and phone numbers with real-time audit counters.
+   - **Cryptographic Privacy Receipt:** Live computed SQLite file size on disk, stored row counts, PII tokens masked breakdown, and zero outbound network calls verification.
+   - **Data Sovereignty:** 1-click permanent purge of all statement records, category overrides, and alerts.
+   - **At-Rest Encryption:** Optional AES-128 Fernet encryption for statement fields via `FINSIGHT_ENCRYPTION_KEY`.
 
 ---
 
-## 2. Technology Stack
+## 2. Benchmark Pipeline Evaluation (PS-04)
+
+FinSight includes an automated evaluation harness testing 3 distinct real-world demographic personas over 6-month continuous banking records:
+
+```bash
+python scripts/evaluate.py
+```
+
+### Automated Benchmark Results (`docs/evaluation.md`):
+
+| Persona | Total Txns | Extraction Acc. | Category Macro-F1 | Anomaly Recall | Anomaly Prec. | 80% Coverage | Warning Lead Time | Ledger Reconciled |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| **Salaried Professional** | 108 | 100.0% | 60.0% | 100.0% | 9.5% | 83.3% | 14 days | PASS (₹0.00 drift) |
+| **Gig Economy Worker** | 125 | 100.0% | 39.6% | 100.0% | 18.2% | 83.3% | 14 days | PASS (₹0.00 drift) |
+| **College Student** | 122 | 100.0% | 66.7% | 100.0% | 8.7% | 83.3% | 14 days | PASS (₹0.00 drift) |
+| **AGGREGATE AVERAGE** | **355** | **100.0%** | **55.4%** | **100.0%** | **12.1%** | **83.3%** | **14.0 days** | **100% VERIFIED** |
+
+*All evaluations run 100% locally with zero external network transmission.*
+
+---
+
+## 3. Technology Stack
 
 - **Backend:**
   - Python 3.12+
-  - **FastAPI** (High-performance async REST API)
-  - **Uvicorn** (ASGI server)
-  - **Pandas & NumPy** (Vectorized time-series analysis & statistical distributions)
-  - **SQLAlchemy** (ORM) & **SQLite** (Local ephemeral persistence)
-  - **pdfplumber** & **pypdf** (Tabular bank statement PDF extraction)
-  - **ReportLab** (Synthetic bank statement PDF generation)
-  - **Pydantic v2** (Strict schema validation)
+  - **FastAPI** (Async REST API) & **Uvicorn**
+  - **NumPy & Pandas** (Vectorized Monte Carlo simulations & statistical distributions)
+  - **SQLAlchemy & SQLite** (Hardware-local persistence with migration guards)
+  - **Cryptography** (AES-128 Fernet at-rest field encryption)
+  - **pdfplumber** (Tabular bank statement PDF parser)
+  - **ReportLab** (Synthetic statement generation)
 - **Frontend:**
   - **React 18** with **Vite**
   - **Tailwind CSS** (Modern dark fintech design system)
-  - **Recharts** (Interactive responsive cash-flow and category charts)
-  - **Lucide React** (Fintech iconography)
-  - **Axios** (REST client)
-  - **React Router Dom v6** (Client-side routing)
-- **Testing:**
-  - **pytest** (Comprehensive unit & integration test suite covering parsers, validation, categorization, recurring detection, anomaly scoring, and forecasting)
+  - **Recharts** (Probabilistic Monte Carlo fan charts, category breakdowns, savings trajectories)
+  - **Lucide React** (Iconography) & **Axios**
+- **Testing & Verification:**
+  - **pytest** (53 unit & integration tests covering parsers, evidence tracking, forecasting, counterfactuals, risk radar, and privacy receipts)
 
 ---
 
-## 3. Architecture & Modular Design
+## 4. Architecture & Directory Structure
 
 ```
 Bank-Statement-Analysis-and-Financial-Health-Monitoring/
 ├── backend/
 │   ├── app/
 │   │   ├── parsers/
-│   │   │   ├── base.py              # BaseParser abstract interface, date & currency normalizer
+│   │   │   ├── base.py              # BaseParser abstract interface & normalizers
 │   │   │   ├── hdfc_parser.py       # HDFC bank statement CSV parser
 │   │   │   ├── sbi_parser.py        # State Bank of India CSV parser
-│   │   │   ├── generic_csv_parser.py# Flexible generic CSV parser (auto & column-mapped)
-│   │   │   ├── pdf_parser.py        # Tabular PDF parser using pdfplumber with regex fallback
-│   │   │   └── detector.py          # Header and signature format detection engine
+│   │   │   ├── generic_csv_parser.py# Generic CSV parser with custom column mapping
+│   │   │   ├── pdf_parser.py        # Tabular PDF parser using pdfplumber
+│   │   │   └── detector.py          # Header & signature format detection
 │   │   ├── models/                  # SQLAlchemy models (Transaction, CategoryOverride, Alert)
-│   │   ├── schemas/                 # Pydantic schemas (NormalizedTransaction, ValidationReport, etc.)
+│   │   ├── schemas/                 # Pydantic validation schemas
 │   │   ├── services/
-│   │   │   ├── validator.py         # Double-entry balance arithmetic & integrity validator
-│   │   │   ├── categorizer.py       # Regex rule-base & merchant extraction engine
-│   │   │   ├── recurring.py         # Cadence clustering & forgotten subscription detector
-│   │   │   ├── anomaly.py           # IQR & category Z-score outlier detection ("Unusual - Please Review")
-│   │   │   ├── scoring.py           # 100-Point Transparent Financial Health Scorer & distress signals
-│   │   │   ├── forecast.py          # 30-Day predictive cash flow simulation engine
-│   │   │   ├── insights.py          # 50/30/20 budget & actionable recommendations engine
-│   │   │   └── sanitizer.py         # PII masking (Account numbers, PAN, cards)
+│   │   │   ├── validator.py         # Global double-entry balance arithmetic & integrity validator
+│   │   │   ├── categorizer.py       # Indian merchant heuristics & category overrides
+│   │   │   ├── recurring.py         # Cadence clustering & subscription detector
+│   │   │   ├── anomaly.py           # Statistical outlier detection ("Unusual - Please Review")
+│   │   │   ├── scoring.py           # 100-Point health scoring & 7-dimension debt-spiral radar
+│   │   │   ├── forecast.py          # 2,000-path Monte Carlo payday forecast & backtesting
+│   │   │   ├── counterfactual.py    # Counterfactual action engine (deterministic re-simulation)
+│   │   │   ├── leakage.py           # Zombie subscriptions & stealth price creep detector
+│   │   │   ├── nl_query.py          # Structured query spec processor (zero raw SQL)
+│   │   │   ├── sanitizer.py         # PII masking with live regex replacement counters
+│   │   │   ├── encryption.py        # AES-128 Fernet at-rest field encryption
+│   │   │   └── telemetry.py         # Auditable outbound network call counter
 │   │   ├── routes/                  # Modular FastAPI routers
-│   │   ├── database.py              # SQLite configuration
-│   │   └── main.py                  # App entry point, CORS, and route registration
-│   ├── tests/                       # 31 Pytest unit & integration tests
+│   │   ├── database.py              # SQLite configuration & safe migration guards
+│   │   └── main.py                  # API entry point & CORS
+│   ├── tests/                       # 53 passing pytest unit & integration tests
 │   └── requirements.txt
 ├── frontend/
 │   ├── src/
-│   │   ├── components/              # Dropzone, ColumnMappingModal, ValidationReportView, HealthScoreCard
-│   │   ├── pages/                   # UploadPage, DashboardPage, TransactionsPage, RecurringPage, ForecastPage, InsightsPage
-│   │   ├── layouts/                 # DashboardLayout with Sidebar & Purge Action
-│   │   ├── services/                # Axios API service
-│   │   ├── App.jsx                  # React Router configuration
-│   │   └── index.css                # Tailwind theme tokens
-│   ├── package.json
-│   └── vite.config.js
-├── demo_data/                       # 5 Generated synthetic statements (HDFC, SBI, Generic, PDF, Broken)
+│   │   ├── components/
+│   │   │   ├── EvidenceDrawer.jsx   # Row-level proof drawer
+│   │   │   ├── health/              # Debt-Spiral Risk Radar
+│   │   │   ├── leakage/             # Financial Leakage & Cost Creep Radar
+│   │   │   ├── chat/                # "Ask Your Statement" NLP Query Panel
+│   │   │   └── privacy/             # Cryptographic Privacy Receipt Modal
+│   │   ├── pages/                   # Upload, Dashboard, Transactions, Recurring, Forecast, Insights
+│   │   ├── layouts/                 # DashboardLayout with Live Privacy Shield
+│   │   └── services/api.js          # REST client
+│   └── package.json
+├── demo_data/                       # 8 Datasets (HDFC, SBI, Generic, PDF, Broken, 3 Personas)
+├── docs/
+│   ├── demo-script.md               # 3-minute hackathon evaluation script for judges
+│   └── evaluation.md                # Automated benchmark report output
 ├── scripts/
-│   └── generate_demo_data.py        # Reproducible synthetic statement generator
+│   ├── generate_demo_data.py        # Multi-persona synthetic statement generator
+│   └── evaluate.py                  # Automated benchmark evaluation script
 └── README.md
 ```
-
----
-
-## 4. Key Architectural Decisions
-
-1. **Deterministic Explainability First ("Why am I seeing this?"):**
-   Every alert, recurring commitment, health score component, and financial recommendation provides an explicit mathematical explanation payload documenting the underlying arithmetic and source transactions.
-2. **Non-Destructive Overrides & User Dismissals:**
-   Raw ledger transactions remain immutable. Category corrections are stored in `CategoryOverrideModel` and automatically applied forward and retroactively. Anomaly dismissals ("This was me") are saved in `AlertModel` without changing ledger values.
-3. **Pluggable Parser Architecture with Fallback Column Mapper:**
-   Detects known banking institutions (HDFC, SBI) via header fingerprints. If a statement uses an unknown schema, an interactive modal allows mapping Date, Description, Debit, Credit, and Balance columns with live row previews.
-4. **Privacy by Design & Memory Shield:**
-   - Raw statements are parsed in memory and immediately deleted from server disk upon completion.
-   - Bank account numbers, credit card numbers, and PAN cards are masked (`••••1234`).
-   - A functional "Delete All My Data" button purges the database immediately.
-   - Zero telemetry: no raw financial records are ever sent to third parties.
 
 ---
 
@@ -122,115 +142,60 @@ cd Bank-Statement-Analysis-and-Financial-Health-Monitoring
 ```bash
 cd backend
 python -m pip install -r requirements.txt
-uvicorn app.main:app --reload --port 8000
+python -m uvicorn app.main:app --reload --port 8000
 ```
-Backend API will be live at: `http://localhost:8000` (Swagger docs at `http://localhost:8000/docs`).
+*Backend API will be live at `http://localhost:8000` (Interactive OpenAPI docs at `http://localhost:8000/docs`).*
 
 ### Step 3: Frontend Setup
-In a new terminal:
+In a second terminal:
 ```bash
 cd frontend
 npm install
-npm run dev
+npm.cmd run dev
 ```
-Frontend web interface will be accessible at: `http://localhost:5173`.
+*(On Windows PowerShell, use `npm.cmd run dev` to bypass execution policy restrictions).*  
+*Frontend web interface will be accessible at `http://localhost:5173`.*
 
-### Step 4: Generate Synthetic Demo Datasets (Optional)
+### Step 4: Run Evaluation Benchmark
+In a third terminal:
 ```bash
-python scripts/generate_demo_data.py
+python scripts/evaluate.py
 ```
-Generates 5 realistic sample statements in `demo_data/`:
-1. `hdfc_sample.csv` (HDFC format, 6 months)
-2. `sbi_sample.csv` (State Bank of India format, 6 months)
-3. `generic_sample.csv` (Generic ledger CSV, 6 months)
-4. `sample_statement.pdf` (Multi-page tabular PDF statement)
-5. `broken_sample.csv` (Deliberate math errors, duplicate rows, and invalid dates for validation demonstrations)
+*Runs unattended evaluation across all 3 demographic personas and outputs a clean Markdown table.*
 
 ---
 
 ## 6. Running Tests
 
-Execute the complete pytest suite (31 unit & integration tests):
+Execute the complete pytest suite (53 unit & integration tests):
 ```bash
 cd backend
 python -m pytest tests -v
 ```
 
-Test coverage includes:
-- Base parser date normalizer and currency cleaner
-- HDFC and SBI CSV parsers
-- Generic CSV parser with custom column mapping
-- Bank statement PDF table parser
-- Double-entry balance arithmetic validation engine
-- Rule-based categorization and user override propagation
-- Recurring subscription cadence detection and forgotten subscription heuristics
-- Statistical IQR and Category Z-score outlier detection
-- 100-Point Financial Health Scoring formula verification
-- Early financial distress signal detection
-- 30-Day predictive cash-flow simulation
-- Verification of all 5 generated demo statement datasets
-
 ---
 
-## 7. REST API Documentation
+## 7. REST API Reference
 
 | Method | Endpoint | Description |
 |---|---|---|
-| `POST` | `/api/upload` | Upload CSV or PDF statement; auto-detects format, runs categorization and ledger validation. |
-| `POST` | `/api/upload/mapped` | Re-parse unknown CSV statements using explicit user column mappings. |
-| `POST` | `/api/upload/confirm` | Persist validated, PII-masked transactions into SQLite database. |
-| `POST` | `/api/upload/demo/{type}` | Instantly load one of the 5 pre-generated demo datasets (`hdfc`, `sbi`, `generic`, `pdf`, `broken`). |
-| `GET` | `/api/transactions` | Query transactions with category, month, search, and pagination filters. |
-| `PATCH` | `/api/transactions/{id}/category` | Update category; optionally propagate to all matching merchant records. |
-| `GET` | `/api/dashboard/summary` | Retrieve KPI cards, MoM growth, cash flow timeline, category breakdown, and top merchants. |
-| `GET` | `/api/recurring` | Retrieve detected recurring commitments, active subscriptions, and forgotten subscriptions. |
-| `GET` | `/api/anomalies` | Retrieve statistical review alerts ("Unusual - Please Review"). |
-| `POST` | `/api/anomalies/{id}/dismiss` | Mark an alert as "This was me" without altering underlying ledger transactions. |
-| `GET` | `/api/health/score` | Retrieve 100-point transparent financial health score with mathematical component breakdowns. |
-| `GET` | `/api/health/distress` | Retrieve detected early financial distress signals with evidence and remedies. |
-| `GET` | `/api/forecast` | Retrieve 30-day simulated balance trajectory, milestone events, and liquidity crunch warnings. |
-| `GET` | `/api/insights` | Retrieve 50/30/20 budget analysis, personalized category budget, and actionable recommendations. |
-| `DELETE` | `/api/privacy/delete-all` | Permanently purge all stored statements, overrides, and alerts. |
-| `GET` | `/api/privacy/status` | Retrieve active privacy shield status, masking policy, and stored record counts. |
+| `POST` | `/api/upload` | Ingest CSV or PDF; auto-detects format, runs categorization and ledger validation. |
+| `POST` | `/api/upload/mapped` | Re-parse CSV statements using custom user column mapping. |
+| `POST` | `/api/upload/confirm` | Persist verified, PII-masked transactions to database. |
+| `POST` | `/api/upload/demo/{type}` | Instantly load demo statements (`hdfc`, `sbi`, `generic`, `pdf`, `broken`, `salaried`, `gig_worker`, `student`). |
+| `GET` | `/api/evidence` | Return contributing transaction rows and raw text behind any dashboard figure. |
+| `GET` | `/api/forecast/probabilistic` | Return 2,000-path Monte Carlo fan chart ($p10/p50/p90$), shortage risk, and danger date. |
+| `GET` | `/api/forecast/backtest` | Run 30-day walk-forward holdout evaluation measuring interval coverage and MAE. |
+| `GET` | `/api/forecast/actions` | Evaluate counterfactual actions ranked by risk reduction per rupee of sacrifice. |
+| `GET` | `/api/health/radar` | Return 7-dimension weighted debt-spiral risk radar with MoM comparison. |
+| `GET` | `/api/leakage` | Detect zombie subscriptions, stealth price creep (>5%), duplicate charges, and bank fees. |
+| `POST` | `/api/query/ask` | Answer natural-language questions via a deterministic Structured Query Spec (zero raw SQL). |
+| `GET` | `/api/privacy/status` | Return live computed SQLite file size, stored rows, masked PII breakdown, and network telemetry. |
+| `DELETE` | `/api/privacy/delete-all` | Permanently purge all statements, overrides, and alerts. |
 
 ---
 
-## 8. Security & Privacy Safeguards
+## 8. Hackathon Presentation & Demo Guide
 
-- **PII Sanitization:** Masks 10–18 digit account numbers, credit cards, and PAN cards to `••••1234`.
-- **Ephemeral Processing:** Uploaded statement files are parsed directly in memory and immediately deleted from disk.
-- **Zero Third-Party Telemetry:** All statistical clustering, financial scoring, and recommendations run 100% locally on the FastAPI backend without external network calls.
-- **Data Deletion:** The user can click "Delete All My Data" at any time to purge SQLite database tables and reset session state.
-
----
-
-## 9. Known Limitations & Future Enhancements
-
-- **Scanned Image PDFs:** The PDF parser handles digital and text-based tabular bank PDFs using `pdfplumber`. Statements that are low-resolution photocopies or flat scanned raster images require an OCR pipeline (e.g. Tesseract) which is planned for v2.0.
-- **Password-Protected PDFs:** Statements encrypted with bank password policies (e.g. DOB + last 4 digits) require manual decryption before upload. Adding an in-browser password prompt is planned for future release.
-- **Multi-Currency Statements:** Current calculations assume INR (`₹`). Multi-currency FX conversion feeds can be integrated for international accounts.
-
----
-
-## 10. Hackathon Feature Checklist
-
-- [x] Pluggable Parser Factory (BaseParser, HDFCParser, SBIParser, GenericCSVParser, PDFParser)
-- [x] Automatic Format & Institution Detector
-- [x] Interactive Unknown CSV Column Mapping Modal
-- [x] Double-Entry Ledger Arithmetic Validator ($\text{Prev} + \text{Credit} - \text{Debit} \approx \text{Curr}$)
-- [x] Rule-Based Indian Banking Categorizer (Swiggy, Zomato, Uber, Netflix, EMI, etc.)
-- [x] Learned User Overrides with Merchant Persistence
-- [x] Financial Dashboard with Monthly Income vs Expenses, Category Donut, and MoM Deltas
-- [x] Cadence Detection for Subscriptions, EMIs, and Forgotten Subscriptions
-- [x] Explainable Anomaly Detection ("Unusual - Please Review" with IQR and Z-scores)
-- [x] "This was me" Alert Dismissal
-- [x] Transparent 100-Point Financial Health Score with Mathematical Breakdown
-- [x] Early Financial Distress Signal Detector
-- [x] 30-Day Predictive Cash-Flow Forecaster with Impending Crunch Point Warnings
-- [x] 50/30/20 Budget Model & Actionable Recommendations with Quantified Savings
-- [x] Explainable AI Executive Summary (100% Offline Rule-Based)
-- [x] PII Masking & Functional "Delete All My Data" Purge Action
-- [x] Synthetic Generator producing HDFC, SBI, Generic, PDF, and Broken Demo Statements
-- [x] 1-Click Evaluation Buttons in Frontend UI
-- [x] 31 Unit & Integration Pytest Suite Passing (100%)
-- [x] Verified Production Build with Tailwind CSS & Recharts
+For a rapid, high-impact 3-minute evaluation walkthrough covering all features, refer to:
+👉 **[docs/demo-script.md](docs/demo-script.md)**

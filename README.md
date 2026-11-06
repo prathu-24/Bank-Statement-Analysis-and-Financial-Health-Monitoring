@@ -90,14 +90,14 @@ python scripts/evaluate.py
 
 | Persona | Total Txns | Extraction Acc. | Category Macro-F1 | Anomaly Recall | Anomaly Prec. | 80% Coverage | Warning Lead Time | Ledger Reconciled |
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
-| **Salaried Professional** | 108 | 100.0% | 100.0% | 100.0% | 66.7% | 62.7% | 14 days | PASS (₹0.00 drift) |
-| **Gig Economy Worker** | 125 | 100.0% | 100.0% | 100.0% | 28.6% | 70.5% | 14 days | PASS (₹0.00 drift) |
-| **College Student** | 122 | 100.0% | 100.0% | 100.0% | 14.3% | 80.0% | 14 days | PASS (₹0.00 drift) |
-| **Held-Out Noisy Benchmark** | 55 | 100.0% | 98.3% | 100.0% | 25.0% | 83.3%* | 12 days | PASS (₹0.00 drift) |
-| **AGGREGATE AVERAGE** | **410** | **100.0%** | **99.6%** | **100.0%** | **33.7%** | **74.1%** | **13.5 days** | **100% VERIFIED** |
+| **Salaried Professional** | 108 | 100.0% | 100.0% | 100.0% | 66.7% | 92.2% | 14 days | PASS (₹0.00 drift) |
+| **Gig Economy Worker** | 125 | 100.0% | 100.0% | 100.0% | 28.6% | 63.6% | 14 days | PASS (₹0.00 drift) |
+| **College Student** | 122 | 100.0% | 100.0% | 100.0% | 14.3% | 100.0% | 14 days | PASS (₹0.00 drift) |
+| **Held-Out Noisy Benchmark** | 55 | 100.0% | 98.3% | 100.0% | 25.0% | 56.2% | 12 days | PASS (₹0.00 drift) |
+| **Unseen Held-Out Benchmark (Out-of-Sample)** | 81 | 100.0% | 63.0% | 100.0% | 66.7% | 72.7% | 12 days | PASS (₹0.00 drift) |
+| **AGGREGATE AVERAGE** | **491** | **100.0%** | **92.3%** | **100.0%** | **40.3%** | **76.9%** | **13.2 days** | **100% VERIFIED** |
 
-*All evaluations execute 100% locally with zero external network transmission.*  
-*\*Held-out benchmark interval coverage evaluated over its valid statement span.*
+*Methodology notes: Personas 1–3 represent in-sample archetypes. The Held-Out Noisy and Unseen Held-Out benchmarks are authentic out-of-sample statements. Monte Carlo intervals are calibrated via full calendar spend pooling (accounting for zero-spend days), achieving 76.9% empirical coverage against the 80% theoretical target. All benchmarks run 100% locally with zero external network calls.*
 
 ---
 

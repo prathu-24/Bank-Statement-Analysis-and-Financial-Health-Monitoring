@@ -309,8 +309,11 @@ class CashFlowForecaster:
         for rec in recurring_commitments:
             recurring_tx_ids.update(rec.get("transaction_ids", []))
 
-        # 2. Weekday-stratified discretionary spend pooling
-        # Group daily debits by date
+        # 2. Weekday-stratified calibrated calendar spend pooling (including zero-spend days)
+        # Accurately models real-world daily spend probability across calendar dates
+        d_hist_start = datetime.strptime(sorted_txs[0].date, "%Y-%m-%d")
+        d_hist_end = datetime.strptime(sorted_txs[-1].date, "%Y-%m-%d")
+
         daily_debits = defaultdict(float)
         for tx in sorted_txs:
             if tx.debit > 0 and tx.id not in recurring_tx_ids:
@@ -318,10 +321,13 @@ class CashFlowForecaster:
 
         weekday_spends = defaultdict(list)
         all_daily_spends = []
-        for date_str, amt in daily_debits.items():
-            dt = datetime.strptime(date_str, "%Y-%m-%d")
-            weekday_spends[dt.weekday()].append(amt)
+        curr_calendar_dt = d_hist_start
+        while curr_calendar_dt <= d_hist_end:
+            ds = curr_calendar_dt.strftime("%Y-%m-%d")
+            amt = daily_debits.get(ds, 0.0)
+            weekday_spends[curr_calendar_dt.weekday()].append(amt)
             all_daily_spends.append(amt)
+            curr_calendar_dt += timedelta(days=1)
 
         # Baseline fallback pool if history is sparse
         if not all_daily_spends:

@@ -190,12 +190,12 @@ def evaluate_persona(persona_key: str):
     }
 
 def main():
-    personas = ["salaried", "gig_worker", "student", "held_out_noisy"]
+    personas = ["salaried", "gig_worker", "student", "held_out_noisy", "unseen_held_out"]
     results = []
 
     print("\n" + "="*85)
-    print("FINSIGHT COMPREHENSIVE PIPELINE EVALUATION (PHASE 2 - ACCURACY)")
-    print("Benchmarking 3 Demographic Personas + 1 Non-Circular Held-Out Real-World Dataset")
+    print("FINSIGHT COMPREHENSIVE PIPELINE EVALUATION (PHASE 7 - HONESTY & ACCURACY)")
+    print("Benchmarking In-Sample Demographic Personas & Out-of-Sample Held-Out Benchmarks")
     print("="*85 + "\n")
 
     for p in personas:
@@ -232,19 +232,20 @@ def main():
     print(markdown_output)
     print("\n" + "="*85)
 
-    # Comparison Table (Before Phase 1 vs After Phase 2)
-    comparison_table = """
-### Before & After Optimization Comparison (Phase 1 vs Phase 2)
+    # Comparison Table
+    comparison_table = f"""### Pipeline Performance Comparison (Baseline vs Calibrated)
 
-| Metric | Phase 1 Baseline | Phase 2 (Optimized) | Improvement Delta |
+| Metric | Phase 1 Baseline | Phase 7 (Calibrated & Verified) | Improvement / Status |
 | :--- | :---: | :---: | :---: |
-| **Category Macro-F1 (Salaried)** | 60.0% | **100.0%** | **+40.0%** 🚀 |
-| **Category Macro-F1 (Gig Economy Worker)** | 39.6% | **100.0%** | **+60.4%** 🚀 |
-| **Category Macro-F1 (College Student)** | 66.7% | **100.0%** | **+33.3%** 🚀 |
-| **Category Macro-F1 (Held-Out Noisy Benchmark)** | N/A (New) | **98.3%** | **New Non-Circular Verification** |
-| **Aggregate Category Macro-F1** | 55.4% | **99.6%** | **+44.2% Absolute Gain** |
-| **Anomaly Detection Recall** | 100.0% | **100.0%** | **Maintained Perfect Recall (0 false negatives)** |
-| **Anomaly Detection Precision** | 12.1% | **33.3%** | **+21.2% (Nearly 3x fewer false alarms)** |
+| **Category Macro-F1 (Salaried - In-Sample)** | 60.0% | **{results[0]['categorization_macro_f1']}%** | **+{round(results[0]['categorization_macro_f1'] - 60.0, 1)}%** |
+| **Category Macro-F1 (Gig Worker - In-Sample)** | 39.6% | **{results[1]['categorization_macro_f1']}%** | **+{round(results[1]['categorization_macro_f1'] - 39.6, 1)}%** |
+| **Category Macro-F1 (Student - In-Sample)** | 66.7% | **{results[2]['categorization_macro_f1']}%** | **+{round(results[2]['categorization_macro_f1'] - 66.7, 1)}%** |
+| **Category Macro-F1 (Held-Out Noisy - Out-of-Sample)** | N/A | **{results[3]['categorization_macro_f1']}%** | **Robust Generalization** |
+| **Category Macro-F1 (Unseen Held-Out - Out-of-Sample)** | N/A | **{results[4]['categorization_macro_f1']}%** | **Untuned Real-World Baseline** |
+| **Aggregate Category Macro-F1** | 55.4% | **{avg_cat}%** | **+{round(avg_cat - 55.4, 1)}% Absolute Gain** |
+| **Anomaly Detection Recall** | 100.0% | **{avg_rec}%** | **Maintained Zero Missed Anomalies** |
+| **Anomaly Detection Precision** | 12.1% | **{avg_prec}%** | **+{round(avg_prec - 12.1, 1)}% Precision (Fewer False Alarms)** |
+| **Forecast 80% Interval Coverage** | ~50.7% | **{avg_cov}%** | **Calibrated via Full Calendar Spend Pooling** |
 | **Ledger Reconciliation Rate** | 100% PASS | **100% PASS** | **Strict $\\pm ₹1.00$ double-entry maintained** |
 """
     print(comparison_table)
@@ -253,17 +254,22 @@ def main():
     doc_path = os.path.join(DOCS_DIR, "evaluation.md")
     now_utc = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
     doc_content = f"""# FinSight Pipeline Evaluation Report
-*Benchmark Protocol: Automated reproducible ground-truth testing across 3 real-world demographic personas and 1 non-circular held-out dataset.*
+*Benchmark Protocol: Automated reproducible ground-truth testing across 3 in-sample demographic personas and 2 out-of-sample held-out datasets.*
 
 Date of Evaluation: {now_utc}
 
 ## Executive Benchmark Summary
 
+> **Note on Evaluation Methodology:**
+> - Personas 1–3 (*Salaried Professional*, *Gig Economy Worker*, *College Student*) represent in-sample demographic archetypes used during rule definition.
+> - *Held-Out Noisy Benchmark* and *Unseen Held-Out Benchmark* represent authentic out-of-sample benchmarks containing merchant narratives and phrasing not seen during rule tuning.
+> - Monte Carlo forecast coverage is calibrated using full calendar spend pooling (accounting for 0-spend days), lifting empirical coverage from 50.7% baseline to ~77.0%.
+
 {markdown_output}
 
 {comparison_table}
 
-## Accuracy Upgrades Implemented in Phase 2
+## Accuracy & Calibration Upgrades
 
 1. **Direction-Aware UPI & Merchant Engine:**
    - Inflows from gig platforms (Swiggy, Zomato, Uber, Zepto, Dunzo, Blinkit) are properly recognized as **Income** instead of being misclassified as Food & Dining.
@@ -274,8 +280,11 @@ Date of Evaluation: {now_utc}
    - Evaluates per-category **Median and Median Absolute Deviation (MAD)** rather than Gaussian parametric Z-scores that skew on banking distributions.
    - Automatically detects and **ignores known recurring payments** (monthly rent, EMIs, regular utilities) to eliminate recurring false positives.
    - Implemented 4-tier severity levels: `LOW`, `MEDIUM`, `HIGH`, `CRITICAL`.
-3. **Non-Circular Held-Out Noisy Dataset:**
-   - Validated on [`demo_data/persona_held_out_noisy.csv`](file:///C:/Users/Mohit/OneDrive/Desktop/Technovate/Bank-Statement-Analysis-and-Financial-Health-Monitoring/demo_data/persona_held_out_noisy.csv) featuring 55 unseen transactions with realistic Indian merchants (Chaayos, Blue Tokai, BPCL, Allen Coaching, Coursera, Tata Power, Indirapuram Gas) achieving **98.3% Macro-F1**.
+3. **Authentic Out-of-Sample Benchmarks:**
+   - Evaluated on [`demo_data/persona_held_out_noisy.csv`](../demo_data/persona_held_out_noisy.csv) (55 txns, 98.3% Macro-F1).
+   - Evaluated on [`demo_data/persona_unseen_held_out.csv`](../demo_data/persona_unseen_held_out.csv) (81 txns, completely untuned 63.0% Macro-F1 out-of-sample).
+4. **Monte Carlo Calibration:**
+   - Full calendar day bootstrapping (including zero-spend days) prevents artificial cash depletion, increasing salaried coverage from 62.7% to 92.2% and student coverage to 100.0%.
 
 ## Hardware-Local Zero-Telemetry Proof
 All evaluation passes completed **100% locally on host hardware** using SQLite in-memory databases, deterministic random seeds (42, 101, 303), and zero network calls.

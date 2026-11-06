@@ -1,17 +1,17 @@
 # FinSight Pipeline Evaluation Report
 *Benchmark Protocol: Automated reproducible ground-truth testing across 3 real-world demographic personas and 1 non-circular held-out dataset.*
 
-Date of Evaluation: 2026-11-06 13:43:49 UTC
+Date of Evaluation: 2026-11-06 13:53:23 UTC
 
 ## Executive Benchmark Summary
 
 | Persona | Total Txns | Extraction Acc. | Category Macro-F1 | Anomaly Recall | Anomaly Prec. | 80% Coverage | Warning Lead Time | Ledger Reconciled |
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
-| **Salaried Professional** | 108 | 100.0% | 100.0% | 100.0% | 66.7% | 83.3% | 14 days | PASS (₹0.00 drift) |
-| **Gig Economy Worker** | 125 | 100.0% | 100.0% | 100.0% | 28.6% | 83.3% | 14 days | PASS (₹0.00 drift) |
-| **College Student** | 122 | 100.0% | 100.0% | 100.0% | 14.3% | 83.3% | 14 days | PASS (₹0.00 drift) |
-| **Held-Out Noisy Benchmark** | 55 | 100.0% | 98.3% | 100.0% | 25.0% | 83.3% | 12 days | PASS (₹0.00 drift) |
-| **AGGREGATE AVERAGE** | **410** | **100.0%** | **99.6%** | **100.0%** | **33.7%** | **83.3%** | **13.5 days** | **100% VERIFIED** |
+| **Salaried Professional** | 108 | 100.0% | 100.0% | 100.0% | 66.7% | 62.7% | 14 days | PASS (₹0.00 drift) |
+| **Gig Economy Worker** | 125 | 100.0% | 100.0% | 100.0% | 28.6% | 70.5% | 14 days | PASS (₹0.00 drift) |
+| **College Student** | 122 | 100.0% | 100.0% | 100.0% | 14.3% | 80.0% | 14 days | PASS (₹0.00 drift) |
+| **Held-Out Noisy Benchmark** | 55 | 100.0% | 98.3% | 100.0% | 25.0% | 18.8% | 12 days | PASS (₹0.00 drift) |
+| **AGGREGATE AVERAGE** | **410** | **100.0%** | **99.6%** | **100.0%** | **33.7%** | **58.0%** | **13.5 days** | **100% VERIFIED** |
 
 
 ### Before & After Optimization Comparison (Phase 1 vs Phase 2)

@@ -114,7 +114,15 @@ export default function ForecastPage() {
       {/* Top Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-slate-800">
         <div>
-          <h1 className="text-2xl font-bold text-white">30-Day Cash-Flow Prediction</h1>
+          <div className="flex items-center gap-3 flex-wrap">
+            <h1 className="text-2xl font-bold text-white">30-Day Cash-Flow Prediction</h1>
+            {probabilistic?.low_confidence && (
+              <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-500/15 text-amber-300 border border-amber-500/30 flex items-center gap-1.5 shadow-sm">
+                <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
+                Low confidence (&lt; 3 mo history)
+              </span>
+            )}
+          </div>
           <p className="text-xs text-slate-400 mt-0.5">
             Predictive liquidity projection combining scheduled obligations, expected salary, and discretionary burn rate
           </p>

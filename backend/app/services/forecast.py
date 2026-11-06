@@ -347,6 +347,21 @@ class CashFlowForecaster:
         # Pre-generate recurring events scheduled in horizon
         horizon_end = start_date + timedelta(days=days + 5)
 
+        # Pre-schedule income occurrences across horizon (handling cadence and overdue paydays)
+        scheduled_incomes = defaultdict(list)
+        for inc in income_sources:
+            last_dt = datetime.strptime(inc["last_date"], "%Y-%m-%d")
+            cycle = inc.get("cycle_days", 30)
+            curr_dt = last_dt + timedelta(days=cycle)
+            if curr_dt <= start_date:
+                # Overdue salary/inflow expected within the first 1-2 days of simulation
+                curr_dt = start_date + timedelta(days=2)
+
+            while curr_dt <= horizon_end:
+                if curr_dt > start_date:
+                    scheduled_incomes[curr_dt.strftime("%Y-%m-%d")].append(inc)
+                curr_dt += timedelta(days=cycle)
+
         # Simulate paths: shape (n_paths, days)
         # Initialize paths with starting balance
         balance_matrix = np.zeros((n_paths, days), dtype=np.float64)
@@ -367,20 +382,25 @@ class CashFlowForecaster:
 
             # B. Income events on this day
             income_inflows = np.zeros(n_paths, dtype=np.float64)
+            date_str = target_date.strftime("%Y-%m-%d")
+            due_incomes = list(scheduled_incomes.get(date_str, []))
+
             for inc in income_sources:
                 sched_day = inc["median_day_of_month"]
-                # Determine if date matches scheduled payday
-                is_scheduled = (target_date.day == sched_day) or (sched_day > 28 and target_date.day == 28)
-                if is_scheduled:
-                    if first_income_day_idx is None:
-                        first_income_day_idx = day_idx
+                is_calendar_match = (target_date.day == sched_day) or (sched_day > 28 and target_date.day == 28)
+                if is_calendar_match and inc not in due_incomes:
+                    due_incomes.append(inc)
 
-                    # With probability (1 - p_delay), income hits today; with p_delay, hits 1-3 days later
-                    delays = rng.choice([0, 1, 2], size=n_paths, p=[1.0 - inc["delay_probability"], inc["delay_probability"] * 0.7, inc["delay_probability"] * 0.3])
-                    # If delay == 0, arrives today
-                    typical = inc["typical_amount"]
-                    variations = rng.normal(typical, typical * 0.02, size=n_paths)
-                    income_inflows += np.where(delays == 0, variations, 0.0)
+            for inc in due_incomes:
+                if first_income_day_idx is None:
+                    first_income_day_idx = day_idx
+
+                # With probability (1 - p_delay), income hits today; with p_delay, hits 1-3 days later
+                delays = rng.choice([0, 1, 2], size=n_paths, p=[1.0 - inc["delay_probability"], inc["delay_probability"] * 0.7, inc["delay_probability"] * 0.3])
+                # If delay == 0, arrives today
+                typical = inc["typical_amount"]
+                variations = rng.normal(typical, typical * 0.02, size=n_paths)
+                income_inflows += np.where(delays == 0, variations, 0.0)
 
             # C. Recurring debits on this day with jitter
             recurring_outflows = np.zeros(n_paths, dtype=np.float64)
@@ -420,6 +440,21 @@ class CashFlowForecaster:
         # Enforce mathematical monotonic bounds: p10 <= p50 <= p90
         p10 = np.minimum(p10, p50)
         p90 = np.maximum(p90, p50)
+
+        # Check history length (< 90 days / 3 months)
+        earliest_tx = sorted_txs[0]
+        history_days = (start_date - datetime.strptime(earliest_tx.date, "%Y-%m-%d")).days
+        low_confidence = history_days < 90
+
+        if low_confidence:
+            # Widen prediction intervals by 35% around median to reflect limited sample size
+            spread_10 = p50 - p10
+            spread_90 = p90 - p50
+            p10 = p50 - (spread_10 * 1.35)
+            p90 = p50 + (spread_90 * 1.35)
+            # Re-enforce monotonic bounds
+            p10 = np.minimum(p10, p50)
+            p90 = np.maximum(p90, p50)
 
         # Shortage Probabilities
         cutoff_day = first_income_day_idx if first_income_day_idx is not None else days
@@ -472,6 +507,12 @@ class CashFlowForecaster:
             "n_paths": n_paths,
             "seed": seed,
             "safety_floor": cls.SAFETY_FLOOR,
+            "low_confidence": low_confidence,
+            "confidence_reason": (
+                f"Statement history spans only {history_days} days (< 90 days / 3 months). Prediction intervals widened to account for limited observation sample."
+                if low_confidence else
+                "Statement history spans >= 90 days with stable recurring baseline."
+            ),
             "daily_distribution": daily_distribution,
             "risk_metrics": {
                 "p_negative_pre_payday": round(p_negative_pre_income * 100, 1),
@@ -500,12 +541,9 @@ class CashFlowForecaster:
         seed: int = 42
     ) -> Dict[str, Any]:
         """
-        Walk-Forward Backtesting Engine.
-        Hides the last `holdout_days` (30 days) of transactions, runs the probabilistic forecast,
-        and evaluates:
-          - Empirical Coverage: share of actual daily closing balances falling within [p10, p90] (target ~80%)
-          - Mean Absolute Error (MAE): |Actual - p50|
-        Requires at least 60 days of total history.
+        Rolling-Origin Backtesting Engine.
+        Evaluates forecast credibility across multiple historical cutoffs (rolling origins)
+        and compares empirical coverage and MAE against a moving average naive baseline.
         """
         if not transactions or len(transactions) < 2:
             return {
@@ -526,80 +564,132 @@ class CashFlowForecaster:
                 "reason": f"Insufficient statement history ({total_span_days} days). Minimum 60 days required to hold out 30 days for rigorous backtesting."
             }
 
-        # Split point: date cutoff 30 days before d_end
-        cutoff_date = (d_end - timedelta(days=holdout_days)).strftime("%Y-%m-%d")
+        # Multi-origin backtesting: determine rolling cutoffs
+        min_train_days = 25
+        primary_cutoff = d_end - timedelta(days=holdout_days)
 
-        train_txs = [tx for tx in sorted_txs if tx.date <= cutoff_date]
-        test_txs = [tx for tx in sorted_txs if tx.date > cutoff_date]
+        cutoff_dates = []
+        if primary_cutoff >= d_start + timedelta(days=min_train_days):
+            cutoff_dates.append(primary_cutoff)
 
-        if not train_txs or not test_txs:
-            return {
-                "is_supported": False,
-                "reason": "Unable to partition training and holdout periods cleanly."
-            }
+        # Include additional earlier origins if data span permits
+        for offset in [14, 28]:
+            earlier_cutoff = primary_cutoff - timedelta(days=offset)
+            if earlier_cutoff >= d_start + timedelta(days=min_train_days):
+                cutoff_dates.append(earlier_cutoff)
 
-        # Run probabilistic forecast on training set
-        forecast_result = cls.forecast_probabilistic(train_txs, days=holdout_days, n_paths=1500, seed=seed)
-        daily_dist = forecast_result.get("daily_distribution", [])
+        if not cutoff_dates:
+            cutoff_dates = [primary_cutoff]
 
-        # Build actual daily balance mapping
-        actual_balances = {}
-        for tx in test_txs:
-            actual_balances[tx.date] = tx.balance
+        cutoff_dates = sorted(cutoff_dates)
 
-        # Evaluate coverage and error across holdout days
-        inside_band_count = 0
-        evaluated_days = 0
-        absolute_errors = []
+        # Pre-index all actual daily balances
+        actual_balances = {tx.date: float(tx.balance) for tx in sorted_txs}
 
-        day_by_day_eval = []
-        for item in daily_dist:
-            dt = item["date"]
-            if dt in actual_balances:
-                act = actual_balances[dt]
-                p10_val = item["p10"]
-                p50_val = item["p50"]
-                p90_val = item["p90"]
+        rolling_reports = []
+        all_inside_band = 0
+        all_evaluated_days = 0
+        all_model_errors = []
+        all_naive_errors = []
 
-                is_inside = (p10_val <= act <= p90_val)
-                if is_inside:
-                    inside_band_count += 1
-                evaluated_days += 1
+        for cutoff_dt in cutoff_dates:
+            cutoff_str = cutoff_dt.strftime("%Y-%m-%d")
+            train_txs = [tx for tx in sorted_txs if tx.date <= cutoff_str]
+            test_txs = [tx for tx in sorted_txs if tx.date > cutoff_str]
+            if not train_txs or not test_txs:
+                continue
 
-                err = abs(act - p50_val)
-                absolute_errors.append(err)
+            # Naive Moving Average Baseline:
+            # Daily burn rate estimated from the trailing 30 days before cutoff
+            trail_start_dt = max(d_start, cutoff_dt - timedelta(days=30))
+            trail_txs = [tx for tx in train_txs if tx.date >= trail_start_dt.strftime("%Y-%m-%d")]
+            cutoff_bal = train_txs[-1].balance
+            if len(trail_txs) >= 2:
+                days_span = max(1, (cutoff_dt - datetime.strptime(trail_txs[0].date, "%Y-%m-%d")).days)
+                daily_drift = (cutoff_bal - trail_txs[0].balance) / days_span
+            else:
+                daily_drift = 0.0
 
-                day_by_day_eval.append({
-                    "date": dt,
-                    "actual": round(act, 2),
-                    "p10": p10_val,
-                    "p50": p50_val,
-                    "p90": p90_val,
-                    "is_inside_80pct_band": is_inside,
-                    "absolute_error": round(err, 2)
+            eval_window = min(holdout_days, (d_end - cutoff_dt).days)
+            if eval_window <= 0:
+                continue
+
+            sim_result = cls.forecast_probabilistic(
+                train_txs,
+                days=eval_window,
+                n_paths=1000,
+                seed=seed
+            )
+            sim_dist = sim_result.get("daily_distribution", [])
+
+            cutoff_inside = 0
+            cutoff_eval_days = 0
+            cutoff_model_errs = []
+            cutoff_naive_errs = []
+
+            for day_offset, item in enumerate(sim_dist, start=1):
+                dt = item["date"]
+                if dt in actual_balances:
+                    act = actual_balances[dt]
+                    p10_v = item["p10"]
+                    p50_v = item["p50"]
+                    p90_v = item["p90"]
+
+                    is_in = (p10_v <= act <= p90_v)
+                    if is_in:
+                        cutoff_inside += 1
+                        all_inside_band += 1
+                    cutoff_eval_days += 1
+                    all_evaluated_days += 1
+
+                    model_err = abs(act - p50_v)
+                    cutoff_model_errs.append(model_err)
+                    all_model_errors.append(model_err)
+
+                    # Naive moving average trajectory
+                    naive_pred = cutoff_bal + (day_offset * daily_drift)
+                    naive_err = abs(act - naive_pred)
+                    cutoff_naive_errs.append(naive_err)
+                    all_naive_errors.append(naive_err)
+
+            if cutoff_eval_days > 0:
+                c_cov = round((cutoff_inside / cutoff_eval_days) * 100, 1)
+                c_mae = round(float(np.mean(cutoff_model_errs)), 2)
+                c_nmae = round(float(np.mean(cutoff_naive_errs)), 2) if cutoff_naive_errs else 0.0
+                rolling_reports.append({
+                    "cutoff_date": cutoff_str,
+                    "evaluated_days": cutoff_eval_days,
+                    "coverage_pct": c_cov,
+                    "model_mae": c_mae,
+                    "naive_baseline_mae": c_nmae,
+                    "improvement_pct": round(((c_nmae - c_mae) / max(1.0, c_nmae)) * 100, 1) if c_nmae > 0 else 0.0
                 })
 
-        if evaluated_days == 0:
-            # Propagate step-wise interpolation if no transactions occurred on certain days
+        if all_evaluated_days == 0:
             return {
                 "is_supported": False,
                 "reason": "No discrete transaction records found on holdout calendar dates."
             }
 
-        coverage_ratio = round(inside_band_count / evaluated_days, 3)
-        coverage_pct = round(coverage_ratio * 100, 1)
-        mae = round(float(np.mean(absolute_errors)), 2)
+        avg_coverage = round((all_inside_band / all_evaluated_days) * 100, 1)
+        avg_mae = round(float(np.mean(all_model_errors)), 2)
+        avg_naive_mae = round(float(np.mean(all_naive_errors)), 2) if all_naive_errors else avg_mae * 1.5
+        mae_improvement = round(((avg_naive_mae - avg_mae) / max(1.0, avg_naive_mae)) * 100, 1)
 
         return {
             "is_supported": True,
             "holdout_days": holdout_days,
-            "evaluated_days_count": evaluated_days,
-            "cutoff_date": cutoff_date,
-            "empirical_coverage_pct": coverage_pct,
+            "evaluated_days_count": all_evaluated_days,
+            "cutoff_date": cutoff_dates[-1].strftime("%Y-%m-%d"),
+            "cutoffs_tested": len(rolling_reports),
+            "empirical_coverage_pct": avg_coverage,
+            "coverage_pct": avg_coverage,
             "target_coverage_pct": 80.0,
-            "coverage_quality": "HIGH" if 70.0 <= coverage_pct <= 90.0 else "ACCEPTABLE" if 60.0 <= coverage_pct <= 95.0 else "NEEDS_TUNING",
-            "mean_absolute_error": mae,
-            "day_by_day": day_by_day_eval[:10],
-            "methodology": "Walk-forward validation isolating the final 30 calendar days to verify if actual daily balances conform to the theoretical 80% Monte Carlo interval [p10, p90]."
+            "coverage_quality": "HIGH" if 70.0 <= avg_coverage <= 90.0 else "ACCEPTABLE" if 60.0 <= avg_coverage <= 95.0 else "NEEDS_TUNING",
+            "mean_absolute_error": avg_mae,
+            "naive_baseline_mae": avg_naive_mae,
+            "mae_improvement_pct": mae_improvement,
+            "rolling_cutoffs": rolling_reports,
+            "methodology": "Rolling-origin walk-forward backtesting evaluating empirical interval coverage [p10, p90] and MAE across multiple historical cutoffs compared against a moving-average naive baseline."
         }
 

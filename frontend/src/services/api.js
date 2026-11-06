@@ -121,6 +121,11 @@ export const statementApi = {
     const response = await api.delete('/privacy/delete-all');
     return response.data;
   },
+
+  getPrivacyStatus: async () => {
+    const response = await api.get('/privacy/status');
+    return response.data;
+  },
 };
 
 export default api;

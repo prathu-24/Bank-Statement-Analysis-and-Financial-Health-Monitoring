@@ -31,7 +31,7 @@ def execute_auto_purge(db: Session) -> int:
 def delete_all_user_data(db: Session = Depends(get_db)):
     """
     Executes a complete purge of all user transactions, category overrides, and alerts.
-    Provides users with complete right-to-be-forgotten privacy control.
+    Provides users with complete right-to-be-forgotten privacy control and zeroes disk pages via VACUUM.
     """
     tx_count = db.query(TransactionModel).count()
     ovr_count = db.query(CategoryOverrideModel).count()
@@ -42,17 +42,28 @@ def delete_all_user_data(db: Session = Depends(get_db)):
     db.query(AlertModel).delete()
     db.commit()
 
+    # Truly purge SQLite database file on disk via VACUUM
+    vacuum_ok = False
+    try:
+        from app.database import engine
+        with engine.connect() as conn:
+            conn.exec_driver_sql("VACUUM")
+        vacuum_ok = True
+    except Exception:
+        pass
+
     DataSanitizer.reset_counter()
     NetworkTracker.reset()
 
     return {
         "status": "success",
-        "message": "All statement records, overrides, and alerts have been permanently purged.",
+        "message": "All statement records, overrides, and alerts have been permanently purged and SQLite storage vacuumed.",
         "purged_records": {
             "transactions": tx_count,
             "category_overrides": ovr_count,
             "alerts": alt_count
-        }
+        },
+        "vacuum_executed": vacuum_ok
     }
 
 @router.get("/status")

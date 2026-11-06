@@ -46,6 +46,9 @@ def test_data_sanitizer_counter_and_breakdown():
     assert breakdown["credit_cards"] == 1
     assert breakdown["pan_cards"] == 1
     assert breakdown["phone_numbers"] == 1
+    assert "aadhaar_numbers" in breakdown
+    assert "emails" in breakdown
+    assert "upi_ids" in breakdown
 
     DataSanitizer.reset_counter()
     assert DataSanitizer.get_masked_count() == 0

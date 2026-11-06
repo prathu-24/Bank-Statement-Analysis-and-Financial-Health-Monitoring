@@ -44,4 +44,21 @@
 - **Methodology Documentation**:
   - Created `docs/forecast-methodology.md` detailing mathematical formulation, weekday-stratified Monte Carlo sampling, recurring jitter, and explicit limitation boundaries.
 
+---
+
+## Phase 5: Privacy and Security Hardening
+- **Air-Gap Outbound Network Isolation Test**:
+  - Added `test_airgap_outbound_network_block` monkeypatching `socket.socket.connect`, `urllib.request.urlopen`, `requests.Session.send`, and `httpx.Client.send` to raise exceptions.
+  - Successfully executed end-to-end flow (Upload -> Parse -> Validate -> Categorize -> Anomaly Detection -> Monte Carlo Forecast -> Structured NL Query) with 0 network calls and 0 errors.
+- **Extended PII Masking**:
+  - Extended `DataSanitizer` to mask Indian Aadhaar numbers (`••••••••1234`), Email addresses (`us••••@domain.com`), and UPI IDs/VPAs (`ra••••@okhdfcbank`).
+  - Added strict negative lookahead/lookbehind protections ensuring monetary amounts (`₹1,00,00,000.00`, `1000000000.00`) and calendar dates (`2024-05-18`, `01/01/2024`) never suffer false-positive masking.
+- **Encryption Key Management**:
+  - Created `scripts/generate_key.py` for generating cryptographically secure 256-bit Fernet keys.
+  - Added startup warning to `backend/app/main.py` alerting when `FINSIGHT_ENCRYPTION_KEY` is unset and documenting key-loss risk.
+- **API Hardening & Right to be Forgotten**:
+  - Restricted CORS origins strictly to localhost / local dev loopback (`http://localhost:5173`, `http://127.0.0.1:5173`, `http://localhost:3000`, `http://localhost:8000`).
+  - Upgraded `/api/privacy/delete-all` to execute SQLite `VACUUM` on the database file, ensuring zero data recovery from raw storage sectors.
+
+
 

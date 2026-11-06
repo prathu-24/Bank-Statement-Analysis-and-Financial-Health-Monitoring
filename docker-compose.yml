@@ -1,0 +1,35 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: finsight-backend
+    ports:
+      - "8000:8000"
+    environment:
+      - PYTHONPATH=/app/backend
+      - FINSIGHT_DB_PATH=/app/backend/finsight.db
+      - FINSIGHT_ENCRYPTION_KEY=${FINSIGHT_ENCRYPTION_KEY:-}
+      - FINSIGHT_AUTO_PURGE=${FINSIGHT_AUTO_PURGE:-false}
+    volumes:
+      - finsight-data:/app/backend
+    restart: unless-stopped
+
+  frontend:
+    image: node:20-alpine
+    container_name: finsight-frontend
+    working_dir: /app
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    command: sh -c "npm install && npm run dev -- --host 0.0.0.0"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  finsight-data:

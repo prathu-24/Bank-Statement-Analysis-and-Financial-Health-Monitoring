@@ -304,8 +304,21 @@ export default function DashboardLayout() {
         )}
 
         {/* Page Content Body */}
-        <main className="flex-1 overflow-y-auto bg-[#080d1a] p-4 md:p-8">
-          <Outlet />
+        <main className="flex-1 overflow-y-auto bg-[#080d1a] p-4 md:p-8 flex flex-col justify-between">
+          <div>
+            <Outlet />
+          </div>
+
+          {/* Non-Verdict Regulatory Disclaimer Footer */}
+          <footer className="mt-12 pt-6 pb-2 border-t border-slate-800/60 text-center space-y-1">
+            <p className="text-[11px] text-slate-500 font-medium tracking-wide">
+              ⚖️ <strong>Not Financial Advice:</strong> FinSight is an automated analytical and educational tool designed for bank statement intelligence.
+              Projections, metrics, and risk indicators are mathematical scenario simulations and do not constitute financial, investment, legal, or credit advice.
+            </p>
+            <p className="text-[10px] text-slate-600">
+              Zero-Telemetry Hardware-Local Processing &bull; All calculations run locally on your device &bull; MIT License
+            </p>
+          </footer>
         </main>
       </div>
 

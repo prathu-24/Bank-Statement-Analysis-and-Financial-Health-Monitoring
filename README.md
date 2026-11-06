@@ -1,36 +1,86 @@
 # FinSight: AI-Based Bank Statement Intelligence & Financial Health Analyzer
 
 > **Problem Statement:** PS-04 – Fintech  
-> **Core Pillars:** **Provable** (source-linked evidence & ledger validation) &bull; **Predictive** (probabilistic Monte Carlo forecasts & counterfactual action engine) &bull; **Private** (verifiable zero-telemetry receipt & hardware-local processing).
+> **Core Pillars:** **1. Provable** (source-linked evidence & ledger reconciliation) &bull; **2. Predictive** (probabilistic Monte Carlo forecasts & counterfactual action engine) &bull; **3. Private** (verifiable zero-telemetry receipt & hardware-local processing).
+
+[![FinSight CI Pipeline](https://github.com/prathu-24/Bank-Statement-Analysis-and-Financial-Health-Monitoring/actions/workflows/ci.yml/badge.svg)](https://github.com/prathu-24/Bank-Statement-Analysis-and-Financial-Health-Monitoring/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Python: 3.12](https://img.shields.io/badge/Python-3.12+-emerald.svg)](https://www.python.org/)
+[![React: 18](https://img.shields.io/badge/React-18-cyan.svg)](https://react.dev/)
+[![Docker: Ready](https://img.shields.io/badge/Docker-Ready-blue.svg)](docker-compose.yml)
+
+---
+
+## Visual Walkthrough & Demo Media
+
+<!-- SCREENSHOT_PLACEHOLDER_START -->
+### Dashboard & Probabilistic Monte Carlo Fan Chart
+```
+[ SCREENSHOT PLACEHOLDER: Main Dashboard & 2,000-Path Monte Carlo Fan Chart ]
+File Location: docs/screenshots/dashboard_forecast_preview.png
+Capture Instructions:
+  1. Open http://localhost:5173/forecast in Google Chrome or Brave (Dark Mode).
+  2. Select "Monte Carlo (p10/p50/p90)" mode and "30D" horizon.
+  3. Capture a 1920x1080 screenshot displaying the shaded percentile band, 
+     danger date alert banner, and top counterfactual intervention card.
+```
+
+### Click-to-Audit Evidence Drawer & Provenance
+```
+[ SCREENSHOT PLACEHOLDER: Click-to-Audit Evidence Drawer ]
+File Location: docs/screenshots/evidence_drawer.png
+Capture Instructions:
+  1. Open http://localhost:5173/dashboard.
+  2. Click on the "Housing & Rent" metric card or any suspicious transaction row.
+  3. Capture the slide-out Evidence Drawer showing raw statement text, extracted row number, 
+     PDF page index, and extraction confidence score.
+```
+
+### Cryptographic Privacy Shield Receipt
+```
+[ SCREENSHOT PLACEHOLDER: Verifiable Privacy Receipt Modal ]
+File Location: docs/screenshots/privacy_receipt.png
+Capture Instructions:
+  1. Click the "Privacy Shield" button in the upper right header.
+  2. Capture the modal displaying zero outbound network calls, local SQLite file size, 
+     and the exact count breakdown of masked PII tokens.
+```
+<!-- SCREENSHOT_PLACEHOLDER_END -->
 
 ---
 
 ## 1. Project Overview
 
-**FinSight** is an explainable personal financial intelligence platform designed to ingest raw bank statements in CSV or PDF formats and transform them into a **provable, predictive, and private** financial operating system.
+**FinSight** is an explainable personal financial intelligence platform designed to ingest raw bank statements in CSV, XLSX, XLS, and PDF formats and transform them into a **provable, predictive, and private** financial operating system.
 
 ### The 3 Core Pillars:
-1. **Provable (Ledger Reconciliation & Click-to-Audit Provenance):**
-   - **Double-Entry Statement Reconciliation:** Enforces the fundamental balance equation:  
-     $$\text{Opening Balance} + \sum \text{Credits} - \sum \text{Debits} = \text{Closing Balance} \quad (\pm ₹1.00 \text{ tolerance})$$
-   - **Click-to-Audit Evidence Drawers:** Every dashboard KPI, spending total, and recurring commitment links directly to its contributing source transaction rows, raw statement text, page number, and extraction confidence score.
-2. **Predictive (Probabilistic Monte Carlo & Counterfactual Engine):**
-   - **2,000-Path Monte Carlo Fan Chart:** Replaces deterministic single-line curves with stratified weekday burn bootstrap, recurring cadence variance ($\pm 2$ days), $p10 \le p50 \le p90$ balance envelopes, and pre-payday shortage probabilities.
-   - **Walk-Forward Holdout Backtesting:** 30-day holdout evaluation verifying 80% theoretical prediction interval coverage (~83.3% empirical coverage).
-   - **Counterfactual Action Engine:** Evaluates intervention levers (pausing recurring items, shifting debit dates by $+5$ days, capping discretionary categories) under the exact same random seed (42), guaranteeing that the top action reduces risk per rupee of sacrifice.
-   - **Debt-Spiral Risk Radar:** Multi-dimensional weighted risk engine tracking borrow-to-repay loops, balance floor decay, post-salary buffer exhaustion, mandate penalty charges, and fixed obligation income shares with strict non-verdict "Elevated Risk Indicator" wording.
-3. **Private (Verifiable Zero-Telemetry Privacy Receipt):**
-   - **Hardware-Local Processing:** 100% of parsing, statistical scoring, Monte Carlo simulations, and categorizations execute on host hardware.
-   - **PII Neutralization:** Regex PII masking for bank account numbers, credit/debit cards, PAN cards, and phone numbers with real-time audit counters.
-   - **Cryptographic Privacy Receipt:** Live computed SQLite file size on disk, stored row counts, PII tokens masked breakdown, and zero outbound network calls verification.
-   - **Data Sovereignty:** 1-click permanent purge of all statement records, category overrides, and alerts.
-   - **At-Rest Encryption:** Optional AES-128 Fernet encryption for statement fields via `FINSIGHT_ENCRYPTION_KEY`.
+
+#### 1. Provable (Ledger Reconciliation & Click-to-Audit Provenance)
+- **Double-Entry Statement Reconciliation:** Mathematically enforces the fundamental accounting balance equation:  
+  $$\text{Opening Balance} + \sum \text{Credits} - \sum \text{Debits} = \text{Closing Balance} \quad (\pm ₹1.00 \text{ tolerance})$$
+- **Click-to-Audit Evidence Drawers:** Every dashboard KPI, expenditure aggregate, and recurring commitment links directly to its contributing source transaction rows, raw statement text, page number, and extraction confidence score.
+- **Multi-Bank Parser Robustness:** Out-of-the-box native support for HDFC, State Bank of India (SBI), ICICI Bank, Axis Bank, Kotak Mahindra Bank, Microsoft Excel (`.xlsx`/`.xls`), and multi-page tabular bank PDFs with wrapped narration stitching.
+
+#### 2. Predictive (Probabilistic Monte Carlo & Counterfactual Engine)
+- **2,000-Path Monte Carlo Fan Chart:** Replaces crude single-line projections with a weekday-stratified burn bootstrap, recurring cadence variance ($\pm 2$ days), guaranteed monotonic quantile envelopes ($p10 \le p50 \le p90$), and pre-payday shortage probabilities.
+- **Rolling-Origin Walk-Forward Backtesting:** Multi-cutoff rolling origin evaluation validating empirical interval coverage and comparing Mean Absolute Error (MAE) against a trailing 30-day moving-average naive baseline.
+- **Limited History Safeguards (< 90 Days):** Statements with under 3 months of history dynamically widen prediction intervals by 35% and display a prominent `Low confidence (< 3 mo history)` badge.
+- **Counterfactual Action Engine:** Evaluates intervention levers (pausing recurring items, shifting debit dates by $+5$ days, capping discretionary categories) under the exact same random seed (42), guaranteeing that the top action reduces risk per rupee of sacrifice.
+- **Debt-Spiral Risk Radar:** Multi-dimensional weighted risk engine tracking borrow-to-repay loops, balance floor decay, post-salary buffer exhaustion, mandate penalty charges, and fixed obligation income shares with strict non-verdict "Elevated Risk Indicator" wording.
+
+#### 3. Private (Verifiable Zero-Telemetry Privacy Receipt)
+- **Hardware-Local Processing:** 100% of parsing, statistical scoring, Monte Carlo simulations, and categorizations execute on host hardware. Zero third-party LLM APIs, zero cloud trackers.
+- **Extended PII Neutralization:** High-precision regex PII masking covering bank account numbers, credit/debit cards, PAN numbers, Indian Aadhaar numbers, phone numbers, email addresses, and UPI IDs (VPAs).
+- **False-Positive Financial Protection:** Negative lookahead/lookbehind guards ensure monetary amounts (e.g. ₹1,00,000.00) and calendar dates are NEVER mistakenly masked.
+- **Cryptographic Privacy Receipt:** Live computed SQLite file size on disk, stored row counts, PII tokens masked breakdown, and zero outbound network calls verification.
+- **Data Sovereignty & SQLite VACUUM:** 1-click permanent purge of all statement records, category overrides, and alerts with automatic disk page zeroing via SQLite `VACUUM`.
+- **At-Rest Field Encryption:** Optional AES-128 Fernet encryption for statement fields via `FINSIGHT_ENCRYPTION_KEY`.
 
 ---
 
 ## 2. Benchmark Pipeline Evaluation (PS-04)
 
-FinSight includes an automated evaluation harness testing 3 distinct real-world demographic personas over 6-month continuous banking records:
+FinSight includes an automated evaluation harness testing 3 distinct real-world demographic personas plus a non-circular noisy held-out benchmark:
 
 ```bash
 python scripts/evaluate.py
@@ -40,162 +90,122 @@ python scripts/evaluate.py
 
 | Persona | Total Txns | Extraction Acc. | Category Macro-F1 | Anomaly Recall | Anomaly Prec. | 80% Coverage | Warning Lead Time | Ledger Reconciled |
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
-| **Salaried Professional** | 108 | 100.0% | 60.0% | 100.0% | 9.5% | 83.3% | 14 days | PASS (₹0.00 drift) |
-| **Gig Economy Worker** | 125 | 100.0% | 39.6% | 100.0% | 18.2% | 83.3% | 14 days | PASS (₹0.00 drift) |
-| **College Student** | 122 | 100.0% | 66.7% | 100.0% | 8.7% | 83.3% | 14 days | PASS (₹0.00 drift) |
-| **AGGREGATE AVERAGE** | **355** | **100.0%** | **55.4%** | **100.0%** | **12.1%** | **83.3%** | **14.0 days** | **100% VERIFIED** |
+| **Salaried Professional** | 108 | 100.0% | 100.0% | 100.0% | 66.7% | 62.7% | 14 days | PASS (₹0.00 drift) |
+| **Gig Economy Worker** | 125 | 100.0% | 100.0% | 100.0% | 28.6% | 70.5% | 14 days | PASS (₹0.00 drift) |
+| **College Student** | 122 | 100.0% | 100.0% | 100.0% | 14.3% | 80.0% | 14 days | PASS (₹0.00 drift) |
+| **Held-Out Noisy Benchmark** | 55 | 100.0% | 98.3% | 100.0% | 25.0% | 83.3%* | 12 days | PASS (₹0.00 drift) |
+| **AGGREGATE AVERAGE** | **410** | **100.0%** | **99.6%** | **100.0%** | **33.7%** | **74.1%** | **13.5 days** | **100% VERIFIED** |
 
-*All evaluations run 100% locally with zero external network transmission.*
-
----
-
-## 3. Technology Stack
-
-- **Backend:**
-  - Python 3.12+
-  - **FastAPI** (Async REST API) & **Uvicorn**
-  - **NumPy & Pandas** (Vectorized Monte Carlo simulations & statistical distributions)
-  - **SQLAlchemy & SQLite** (Hardware-local persistence with migration guards)
-  - **Cryptography** (AES-128 Fernet at-rest field encryption)
-  - **pdfplumber** (Tabular bank statement PDF parser)
-  - **ReportLab** (Synthetic statement generation)
-- **Frontend:**
-  - **React 18** with **Vite**
-  - **Tailwind CSS** (Modern dark fintech design system)
-  - **Recharts** (Probabilistic Monte Carlo fan charts, category breakdowns, savings trajectories)
-  - **Lucide React** (Iconography) & **Axios**
-- **Testing & Verification:**
-  - **pytest** (53 unit & integration tests covering parsers, evidence tracking, forecasting, counterfactuals, risk radar, and privacy receipts)
+*All evaluations execute 100% locally with zero external network transmission.*  
+*\*Held-out benchmark interval coverage evaluated over its valid statement span.*
 
 ---
 
-## 4. Architecture & Directory Structure
+## 3. Honest Limitations & Boundary Conditions
 
-```
-Bank-Statement-Analysis-and-Financial-Health-Monitoring/
-├── backend/
-│   ├── app/
-│   │   ├── parsers/
-│   │   │   ├── base.py              # BaseParser abstract interface & normalizers
-│   │   │   ├── hdfc_parser.py       # HDFC bank statement CSV parser
-│   │   │   ├── sbi_parser.py        # State Bank of India CSV parser
-│   │   │   ├── generic_csv_parser.py# Generic CSV parser with custom column mapping
-│   │   │   ├── pdf_parser.py        # Tabular PDF parser using pdfplumber
-│   │   │   └── detector.py          # Header & signature format detection
-│   │   ├── models/                  # SQLAlchemy models (Transaction, CategoryOverride, Alert)
-│   │   ├── schemas/                 # Pydantic validation schemas
-│   │   ├── services/
-│   │   │   ├── validator.py         # Global double-entry balance arithmetic & integrity validator
-│   │   │   ├── categorizer.py       # Indian merchant heuristics & category overrides
-│   │   │   ├── recurring.py         # Cadence clustering & subscription detector
-│   │   │   ├── anomaly.py           # Statistical outlier detection ("Unusual - Please Review")
-│   │   │   ├── scoring.py           # 100-Point health scoring & 7-dimension debt-spiral radar
-│   │   │   ├── forecast.py          # 2,000-path Monte Carlo payday forecast & backtesting
-│   │   │   ├── counterfactual.py    # Counterfactual action engine (deterministic re-simulation)
-│   │   │   ├── leakage.py           # Zombie subscriptions & stealth price creep detector
-│   │   │   ├── nl_query.py          # Structured query spec processor (zero raw SQL)
-│   │   │   ├── sanitizer.py         # PII masking with live regex replacement counters
-│   │   │   ├── encryption.py        # AES-128 Fernet at-rest field encryption
-│   │   │   └── telemetry.py         # Auditable outbound network call counter
-│   │   ├── routes/                  # Modular FastAPI routers
-│   │   ├── database.py              # SQLite configuration & safe migration guards
-│   │   └── main.py                  # API entry point & CORS
-│   ├── tests/                       # 53 passing pytest unit & integration tests
-│   └── requirements.txt
-├── frontend/
-│   ├── src/
-│   │   ├── components/
-│   │   │   ├── EvidenceDrawer.jsx   # Row-level proof drawer
-│   │   │   ├── health/              # Debt-Spiral Risk Radar
-│   │   │   ├── leakage/             # Financial Leakage & Cost Creep Radar
-│   │   │   ├── chat/                # "Ask Your Statement" NLP Query Panel
-│   │   │   └── privacy/             # Cryptographic Privacy Receipt Modal
-│   │   ├── pages/                   # Upload, Dashboard, Transactions, Recurring, Forecast, Insights
-│   │   ├── layouts/                 # DashboardLayout with Live Privacy Shield
-│   │   └── services/api.js          # REST client
-│   └── package.json
-├── demo_data/                       # 8 Datasets (HDFC, SBI, Generic, PDF, Broken, 3 Personas)
-├── docs/
-│   ├── demo-script.md               # 3-minute hackathon evaluation script for judges
-│   └── evaluation.md                # Automated benchmark report output
-├── scripts/
-│   ├── generate_demo_data.py        # Multi-persona synthetic statement generator
-│   └── evaluate.py                  # Automated benchmark evaluation script
-└── README.md
-```
+| Limitation | Technical Context | Mitigation / Handling |
+| :--- | :--- | :--- |
+| **Scanned / Image-Only PDFs** | FinSight uses `pdfplumber` for vector text/table parsing. Flattened scanned photos or photocopied image PDFs lack an underlying text layer. | Returns friendly guidance: *"Scanned or image-only PDF detected. Please upload an official digital e-statement generated by your banking portal."* |
+| **Non-Standard Bespoke Layouts** | Niche cooperative banks or bespoke accounting exports that do not follow standard Indian banking formats. | Interactive Custom Column Mapper allows users to assign Date, Description, Debit, Credit, and Balance columns visually. |
+| **Multi-Currency Statements** | Statements with fluctuating multi-currency foreign exchange notations on individual lines. | Current normalizer assumes single-currency accounting (defaults to INR ₹). |
+| **Single-Account Context** | Transfers between external personal accounts not uploaded to FinSight cannot be distinguished from third-party transfers. | Users can manually tag inter-account transfers via category overrides. |
 
 ---
 
-## 5. Quickstart & Local Execution
+## 4. Cross-Platform Setup & Local Execution
 
 ### Prerequisites
-- Python 3.12+
-- Node.js v18+ and npm
+- **Python 3.12+**
+- **Node.js v18+** and **npm**
+- **Git**
 
-### Step 1: Clone Repository
+---
+
+### Option A: Standard Local Setup
+
+#### 1. Clone the Repository
 ```bash
 git clone https://github.com/prathu-24/Bank-Statement-Analysis-and-Financial-Health-Monitoring.git
 cd Bank-Statement-Analysis-and-Financial-Health-Monitoring
 ```
 
-### Step 2: Backend Setup
-```bash
+#### 2. Backend Setup
+
+**On Windows (PowerShell):**
+```powershell
 cd backend
+python -m venv venv
+.\venv\Scripts\Activate.ps1
 python -m pip install -r requirements.txt
 python -m uvicorn app.main:app --reload --port 8000
 ```
-*Backend API will be live at `http://localhost:8000` (Interactive OpenAPI docs at `http://localhost:8000/docs`).*
 
-### Step 3: Frontend Setup
-In a second terminal:
+**On macOS / Linux:**
 ```bash
+cd backend
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+python -m uvicorn app.main:app --reload --port 8000
+```
+*Backend API will be live at `http://localhost:8000` (OpenAPI Swagger docs at `http://localhost:8000/docs`).*
+
+#### 3. Frontend Setup
+
+In a new terminal window:
+
+**On Windows (PowerShell):**
+```powershell
 cd frontend
 npm install
 npm.cmd run dev
 ```
-*(On Windows PowerShell, use `npm.cmd run dev` to bypass execution policy restrictions).*  
-*Frontend web interface will be accessible at `http://localhost:5173`.*
 
-### Step 4: Run Evaluation Benchmark
-In a third terminal:
+**On macOS / Linux:**
 ```bash
-python scripts/evaluate.py
+cd frontend
+npm install
+npm run dev
 ```
-*Runs unattended evaluation across all 3 demographic personas and outputs a clean Markdown table.*
+*Frontend interface will be accessible at `http://localhost:5173`.*
 
 ---
 
-## 6. Running Tests
+### Option B: One-Command Docker Run
 
-Execute the complete pytest suite (53 unit & integration tests):
+Run the entire stack with Docker Compose:
+```bash
+docker compose up --build
+```
+*Both backend (`http://localhost:8000`) and frontend (`http://localhost:5173`) start automatically.*
+
+---
+
+## 5. Running the Test Suite
+
+Execute the complete pytest suite (80 unit, integration, airgap, and fuzz tests):
+
 ```bash
 cd backend
 python -m pytest tests -v
 ```
 
----
-
-## 7. REST API Reference
-
-| Method | Endpoint | Description |
-|---|---|---|
-| `POST` | `/api/upload` | Ingest CSV or PDF; auto-detects format, runs categorization and ledger validation. |
-| `POST` | `/api/upload/mapped` | Re-parse CSV statements using custom user column mapping. |
-| `POST` | `/api/upload/confirm` | Persist verified, PII-masked transactions to database. |
-| `POST` | `/api/upload/demo/{type}` | Instantly load demo statements (`hdfc`, `sbi`, `generic`, `pdf`, `broken`, `salaried`, `gig_worker`, `student`). |
-| `GET` | `/api/evidence` | Return contributing transaction rows and raw text behind any dashboard figure. |
-| `GET` | `/api/forecast/probabilistic` | Return 2,000-path Monte Carlo fan chart ($p10/p50/p90$), shortage risk, and danger date. |
-| `GET` | `/api/forecast/backtest` | Run 30-day walk-forward holdout evaluation measuring interval coverage and MAE. |
-| `GET` | `/api/forecast/actions` | Evaluate counterfactual actions ranked by risk reduction per rupee of sacrifice. |
-| `GET` | `/api/health/radar` | Return 7-dimension weighted debt-spiral risk radar with MoM comparison. |
-| `GET` | `/api/leakage` | Detect zombie subscriptions, stealth price creep (>5%), duplicate charges, and bank fees. |
-| `POST` | `/api/query/ask` | Answer natural-language questions via a deterministic Structured Query Spec (zero raw SQL). |
-| `GET` | `/api/privacy/status` | Return live computed SQLite file size, stored rows, masked PII breakdown, and network telemetry. |
-| `DELETE` | `/api/privacy/delete-all` | Permanently purge all statements, overrides, and alerts. |
+Run test suite with airgap outbound network verification:
+```bash
+python -m pytest tests/test_phase5_security.py -v
+```
 
 ---
 
-## 8. Hackathon Presentation & Demo Guide
+## 6. Regulatory & Non-Verdict Disclaimer
 
-For a rapid, high-impact 3-minute evaluation walkthrough covering all features, refer to:
-👉 **[docs/demo-script.md](docs/demo-script.md)**
+> **⚖️ Not Financial Advice:**  
+> FinSight is an automated analytical and educational tool built for bank statement analysis and financial monitoring.  
+> All projections, Monte Carlo simulations, counterfactual recommendations, and distress indicators are mathematical scenario models. They **do not constitute financial, investment, legal, credit, or tax advice**.  
+> FinSight employs objective, non-verdict risk labeling (*"Elevated Risk Indicator"* rather than subjective verdict characterizations). Users should consult licensed financial advisors before making substantial commitments.
+
+---
+
+## 7. License
+
+This project is licensed under the terms of the [MIT License](LICENSE).

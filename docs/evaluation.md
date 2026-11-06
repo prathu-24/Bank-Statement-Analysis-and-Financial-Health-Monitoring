@@ -1,7 +1,7 @@
 # FinSight Pipeline Evaluation Report
 *Benchmark Protocol: Automated reproducible ground-truth testing across 3 real-world demographic personas and 1 non-circular held-out dataset.*
 
-Date of Evaluation: 2026-11-06 13:53:23 UTC
+Date of Evaluation: 2026-11-06 14:05:25 UTC
 
 ## Executive Benchmark Summary
 

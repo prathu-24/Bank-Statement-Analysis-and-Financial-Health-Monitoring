@@ -60,5 +60,28 @@
   - Restricted CORS origins strictly to localhost / local dev loopback (`http://localhost:5173`, `http://127.0.0.1:5173`, `http://localhost:3000`, `http://localhost:8000`).
   - Upgraded `/api/privacy/delete-all` to execute SQLite `VACUUM` on the database file, ensuring zero data recovery from raw storage sectors.
 
+---
+
+## Phase 6: Documentation, CI/CD, and Deployment Infrastructure
+- **README Rewrite**:
+  - Corrected and structured the 3 core pillars (1. Provable, 2. Predictive, 3. Private).
+  - Added dedicated screenshot and GIF capture placeholders with exact resolution, theme, and navigation instructions.
+  - Added an honest "Limitations & Boundary Conditions" table covering image-only PDFs, non-standard layouts, and multi-currency edge cases.
+  - Added cross-platform execution instructions for Windows (PowerShell), macOS, and Linux.
+  - Added prominent non-verdict "Not Financial Advice" regulatory disclaimer.
+- **CI/CD Pipeline**:
+  - Created `.github/workflows/ci.yml` running Python 3.12, ruff linting, 80 backend pytest tests, evaluate.py benchmark verification, and Node 20 React frontend production build.
+- **Dockerization**:
+  - Added multi-stage `Dockerfile` building frontend assets and packaging Python backend.
+  - Added `docker-compose.yml` for instant one-command stack startup (`docker compose up --build`).
+- **Environment & Licensing**:
+  - Added `.env.example` documenting all configuration options (`FINSIGHT_ENCRYPTION_KEY`, `FINSIGHT_DB_PATH`, `FINSIGHT_AUTO_PURGE`).
+  - Added standard `LICENSE` (MIT License).
+- **UI Non-Verdict Disclaimer**:
+  - Added legal "Not Financial Advice" disclaimer and hardware-local privacy note to `DashboardLayout.jsx` footer.
+- **Final Security & Secrets Audit**:
+  - Scanned entire repository for credentials, private keys, and real personal data (0 leaked secrets found, all demo data 100% synthetic).
+
+
 
 

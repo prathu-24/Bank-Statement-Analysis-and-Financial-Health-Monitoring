@@ -15,6 +15,8 @@ import {
   Lightbulb
 } from 'lucide-react';
 import { statementApi } from '../services/api';
+import AskStatementPanel from '../components/chat/AskStatementPanel';
+import LeakageDetectorPanel from '../components/leakage/LeakageDetectorPanel';
 
 export default function InsightsPage() {
   const [loading, setLoading] = useState(true);
@@ -96,6 +98,9 @@ export default function InsightsPage() {
           </div>
         )}
       </div>
+
+      {/* Natural Language Statement Search & Query Engine */}
+      <AskStatementPanel />
 
       {/* SECTION 1: Explainable AI Executive Summary */}
       {ai_overview.headline && (
@@ -249,6 +254,9 @@ export default function InsightsPage() {
           </div>
         </div>
       )}
+
+      {/* Financial Leakage & Cost Creep Radar */}
+      <LeakageDetectorPanel />
 
       {/* SECTION 3: Actionable Financial Recommendations */}
       <div className="space-y-4">

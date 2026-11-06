@@ -126,6 +126,16 @@ export const statementApi = {
     const response = await api.get('/privacy/status');
     return response.data;
   },
+
+  getLeakage: async () => {
+    const response = await api.get('/leakage');
+    return response.data;
+  },
+
+  askStatement: async (question) => {
+    const response = await api.post('/query/ask', { question });
+    return response.data;
+  },
 };
 
 export default api;

@@ -50,17 +50,25 @@ export default function RecurringPage() {
   const handleDismissAnomaly = async (alertId) => {
     setDismissingId(alertId);
     try {
-      await statementApi.dismissAnomaly(alertId);
+      const res = await statementApi.dismissAnomaly(alertId);
       // Optimistically update
       setAnomaliesData(prev => {
         if (!prev) return prev;
         const updatedAlerts = prev.alerts.map(a =>
           a.alert_id === alertId ? { ...a, is_dismissed: true } : a
         );
+        const newDismissedCount = prev.dismissed_count + 1;
+        const newPending = Math.max(0, prev.pending_count - 1);
+        const newRate = res.new_dismiss_rate_pct !== undefined ? res.new_dismiss_rate_pct : (prev.total_alerts > 0 ? Math.round((newDismissedCount / prev.total_alerts) * 100) : 100);
+        const learned = res.merchant_learned && !prev.learned_merchants?.includes(res.merchant_learned)
+          ? [...(prev.learned_merchants || []), res.merchant_learned]
+          : prev.learned_merchants;
         return {
           ...prev,
-          pending_count: Math.max(0, prev.pending_count - 1),
-          dismissed_count: prev.dismissed_count + 1,
+          pending_count: newPending,
+          dismissed_count: newDismissedCount,
+          dismiss_rate_pct: newRate,
+          learned_merchants: learned,
           alerts: updatedAlerts
         };
       });
@@ -176,16 +184,26 @@ export default function RecurringPage() {
               <ShieldAlert className="w-6 h-6" />
             </div>
             <div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <h2 className="text-base font-bold text-white">Unusual - Please Review</h2>
                 {pending_count > 0 && (
                   <span className="px-2 py-0.5 text-[11px] font-bold rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/30">
                     {pending_count} pending review
                   </span>
                 )}
+                {anomaliesData?.dismiss_rate_pct !== undefined && (
+                  <span className="px-2 py-0.5 text-[10px] font-mono font-semibold rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                    {anomaliesData.dismiss_rate_pct}% Feedback Dismiss Rate
+                  </span>
+                )}
               </div>
               <p className="text-xs text-slate-400 mt-0.5">
                 Explainable anomalies detected using IQR, category Z-scores, and duplicate clustering.
+                {anomaliesData?.learned_merchants?.length > 0 && (
+                  <span className="text-indigo-400 block mt-0.5">
+                    &bull; Learned recognized merchants: {anomaliesData.learned_merchants.join(", ")}
+                  </span>
+                )}
               </p>
             </div>
           </div>

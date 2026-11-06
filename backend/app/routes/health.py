@@ -28,18 +28,34 @@ def get_financial_health_score(db: Session = Depends(get_db)):
 @router.get("/distress")
 def get_distress_signals(db: Session = Depends(get_db)):
     """
-    Scans for early financial distress signals:
+    Scans for early financial distress signals and debt-spiral indicators:
       - Declining savings rate
       - Increasing EMI share of income
       - Repeated low-balance days
       - Spending expanding faster than income
+      - Borrow-to-repay loops
+      - Deteriorating monthly liquidity floor
+      - Rapid post-salary depletion
+      - Mandate bounces and penalty charges
+      - Fixed-obligation income share
     """
     transactions = db.query(TransactionModel).order_by(TransactionModel.date.asc()).all()
     signals = FinancialHealthScorer.detect_distress_signals(transactions)
+    radar = FinancialHealthScorer.evaluate_risk_radar(transactions)
 
     return {
         "signals_count": len(signals),
         "has_critical_distress": any(s["severity"] == "HIGH" for s in signals),
-        "signals": signals
+        "signals": signals,
+        "radar": radar
     }
+
+@router.get("/radar")
+def get_risk_radar(db: Session = Depends(get_db)):
+    """
+    Returns transparent Debt-Spiral Risk Indicator Radar.
+    Per-signal point contributions, MoM comparison, and explicit formula documentation.
+    """
+    transactions = db.query(TransactionModel).order_by(TransactionModel.date.asc()).all()
+    return FinancialHealthScorer.evaluate_risk_radar(transactions)
 

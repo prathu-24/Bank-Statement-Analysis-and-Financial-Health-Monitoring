@@ -80,3 +80,4 @@ def test_counterfactual_api_endpoint(db_session):
     assert "baseline" in res
     assert "actions" in res
     assert "methodology" in res
+

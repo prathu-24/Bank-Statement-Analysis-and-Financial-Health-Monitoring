@@ -31,6 +31,7 @@ import {
 } from 'recharts';
 import { statementApi } from '../services/api';
 import EvidenceDrawer from '../components/EvidenceDrawer';
+import DebtSpiralRadar from '../components/health/DebtSpiralRadar';
 
 const CATEGORY_COLORS = [
   '#6366f1', '#ec4899', '#10b981', '#f59e0b',
@@ -407,6 +408,9 @@ export default function DashboardPage() {
           </div>
         </div>
       </div>
+
+      {/* Debt-Spiral Risk Radar Panel */}
+      <DebtSpiralRadar />
 
       {/* Bottom Grid: Top Merchants and MoM Savings Trend */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

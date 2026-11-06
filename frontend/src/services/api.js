@@ -82,6 +82,11 @@ export const statementApi = {
     return response.data;
   },
 
+  getRiskRadar: async () => {
+    const response = await api.get('/health/radar');
+    return response.data;
+  },
+
   getCashFlowForecast: async (days = 30) => {
     const response = await api.get('/forecast', { params: { days } });
     return response.data;

@@ -1,4 +1,5 @@
 import io
+import re
 import pandas as pd
 from typing import List, Optional
 from app.parsers.base import BaseParser
@@ -8,7 +9,7 @@ class GenericCSVParser(BaseParser):
     """
     Parser for generic bank statement CSVs.
     Can operate in:
-      1. Auto-detection mode (matches synonymous column headers).
+      1. Auto-detection mode (matches synonymous column headers & multi-delimiter resilience).
       2. Explicit user column mapping mode.
     """
 
@@ -22,17 +23,42 @@ class GenericCSVParser(BaseParser):
         if not lines:
             return []
 
-        # Find header index: the row with the most column-like commas/delimiters
+        # Find header index: the row with the most column-like delimiters
         header_idx = 0
+        detected_sep = ','
+        delims = [',', ';', '\t', '|']
+
         if not self.mapping:
-            for idx, line in enumerate(lines[:15]):
+            best_score = -1
+            for idx, line in enumerate(lines[:60]):
                 low = line.lower()
-                if any(w in low for w in ['date', 'amount', 'balance', 'description', 'debit', 'credit']):
-                    header_idx = idx
-                    break
+                delim_counts = {d: line.count(d) for d in delims}
+                max_d = max(delim_counts, key=delim_counts.get)
+                if delim_counts[max_d] >= 1:
+                    keywords = [
+                        'date', 'dt', 'time', 'day', 'narration', 'particular', 'desc', 'detail',
+                        'remark', 'debit', 'credit', 'amount', 'amt', 'balance', 'bal', 'dr', 'cr',
+                        'withdrawal', 'deposit', 'chq', 'ref', 'chqno', 'tran'
+                    ]
+                    score = sum(1 for kw in keywords if kw in low)
+                    if score > best_score and score >= 2:
+                        best_score = score
+                        header_idx = idx
+                        detected_sep = max_d
+                        if score >= 4:
+                            break
+        else:
+            delim_counts = {d: lines[0].count(d) for d in delims}
+            detected_sep = max(delim_counts, key=delim_counts.get)
 
         csv_data = "\n".join(lines[header_idx:])
-        df = pd.read_csv(io.StringIO(csv_data), dtype=str)
+        try:
+            df = pd.read_csv(io.StringIO(csv_data), sep=detected_sep, dtype=str, on_bad_lines='skip')
+        except Exception:
+            try:
+                df = pd.read_csv(io.StringIO(csv_data), dtype=str, on_bad_lines='skip')
+            except Exception:
+                return []
 
         # Build column mapping
         date_col = None
@@ -54,28 +80,34 @@ class GenericCSVParser(BaseParser):
         else:
             for col in df.columns:
                 c = str(col).strip().lower()
-                if not date_col and ('date' in c or 'txn_date' in c):
+                if not date_col and (re.search(r'\b(?:date|dt|time|day|period|posting|value|timestamp)\b', c) or 'date' in c):
                     date_col = col
-                elif not desc_col and any(k in c for k in ['desc', 'narration', 'particular', 'memo', 'details', 'name']):
+                elif not desc_col and (re.search(r'\b(?:desc|narration|particular|memo|detail|remark|txn|trans|party|payee|reference)\b', c) or any(k in c for k in ['desc', 'narration', 'particular', 'memo', 'detail'])):
                     desc_col = col
-                elif not debit_col and any(k in c for k in ['debit', 'withdrawal', 'dr', 'spent']):
+                elif not debit_col and (re.search(r'\b(?:debit|withdrawal|spent|dr|outflow|payment)\b', c) or any(k in c for k in ['debit', 'withdrawal', 'dr', 'spent'])):
                     debit_col = col
-                elif not credit_col and any(k in c for k in ['credit', 'deposit', 'cr', 'received']):
+                elif not credit_col and (re.search(r'\b(?:credit|deposit|received|cr|inflow|receipt)\b', c) or any(k in c for k in ['credit', 'deposit', 'cr', 'received'])):
                     credit_col = col
-                elif not amount_col and 'amount' in c:
+                elif not amount_col and (re.search(r'\b(?:amount|amt)\b', c) or 'amount' in c):
                     amount_col = col
-                elif not balance_col and any(k in c for k in ['balance', 'bal', 'closing']):
+                elif not balance_col and (re.search(r'\b(?:balance|bal|closing)\b', c) or any(k in c for k in ['balance', 'bal', 'closing'])):
                     balance_col = col
 
+            # Fallbacks if columns weren't matched by keyword
+            if not date_col and len(df.columns) > 0:
+                date_col = df.columns[0]
+            if not desc_col and len(df.columns) > 1:
+                desc_col = df.columns[1]
+
         transactions: List[NormalizedTransaction] = []
+        running_bal = 0.0
+        has_explicit_balance = bool(balance_col and balance_col in df.columns and balance_col != '(AUTO_COMPUTE)')
 
         for idx, row in df.iterrows():
             raw_date = str(row.get(date_col, '')).strip() if date_col in df.columns else ""
             parsed_date = self.parse_date(raw_date, custom_format=date_format)
 
             if not parsed_date:
-                # If a date was provided but invalid/unrecognized, do not discard silently;
-                # pass the raw string so StatementValidator can audit and flag INVALID_DATE.
                 if raw_date and raw_date.lower() not in ('nan', 'none', '-', '', 'null'):
                     parsed_date = raw_date
                 else:
@@ -103,8 +135,12 @@ class GenericCSVParser(BaseParser):
                     credit = amt_val
 
             balance = 0.0
-            if balance_col and balance_col in df.columns:
+            if has_explicit_balance:
                 balance = self.clean_amount(row.get(balance_col))
+                running_bal = balance
+            else:
+                running_bal += (credit - debit)
+                balance = round(running_bal, 2)
 
             if debit == 0.0 and credit == 0.0 and balance == 0.0:
                 continue
@@ -123,8 +159,7 @@ class GenericCSVParser(BaseParser):
                 source_page=1,
                 source_row=csv_row_num,
                 raw_text=raw_line,
-                extraction_confidence=1.0,
-                raw_row={k: str(v) for k, v in row.to_dict().items() if pd.notna(v)}
+                extraction_confidence=1.0
             )
             transactions.append(tx)
 

@@ -94,7 +94,20 @@ async def upload_statement(
 
     fmt, confidence, headers, samples = detect_format(content, filename)
 
+    transactions = []
     if fmt == 'unknown':
+        # Resilient fallback: attempt automatic generic parsing before prompting user
+        try:
+            auto_parser = GenericCSVParser()
+            auto_txs = auto_parser.parse(content, filename)
+            if auto_txs and len(auto_txs) > 0:
+                transactions = auto_txs
+                fmt = 'generic'
+                confidence = 0.85
+        except Exception:
+            pass
+
+    if fmt == 'unknown' and not transactions:
         return ParseResult(
             filename=filename,
             detected_format=fmt,
@@ -109,14 +122,14 @@ async def upload_statement(
             account_verification=account_verif
         )
 
-    parser = _get_parser_for_format(fmt)
-
-    try:
-        transactions = parser.parse(content, filename)
-    except ValueError as ve:
-        raise HTTPException(status_code=400, detail=str(ve))
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Failed to parse statement: {str(e)}")
+    if not transactions:
+        parser = _get_parser_for_format(fmt)
+        try:
+            transactions = parser.parse(content, filename)
+        except ValueError as ve:
+            raise HTTPException(status_code=400, detail=str(ve))
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Failed to parse statement: {str(e)}")
 
     if not transactions:
         raise HTTPException(
@@ -208,7 +221,7 @@ async def upload_with_mapping(
         filename=filename,
         detected_format="excel_mapped" if is_excel else "generic_mapped",
         confidence=1.0,
-        detected_headers=[col_mapping.date_col, col_mapping.description_col, col_mapping.balance_col],
+        detected_headers=[col_mapping.date_col, col_mapping.description_col, col_mapping.balance_col or "Balance (Auto)"],
         sample_rows=[],
         needs_mapping=False,
         transactions=transactions,

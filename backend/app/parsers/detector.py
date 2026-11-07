@@ -82,31 +82,58 @@ def detect_format(content: bytes, filename: str = "") -> Tuple[str, float, List[
         return 'sbi', 0.95, headers, samples
 
     # F. Generic CSV Detection
-    has_date = any('date' in h for h in header_lower)
-    has_amount = any(w in h for h in header_lower for w in ['amount', 'debit', 'credit', 'withdrawal', 'deposit', 'dr', 'cr'])
-    has_balance = any('balance' in h or 'bal' in h for h in header_lower)
+    date_keywords = ['date', 'dt', 'time', 'timestamp', 'day', 'period', 'posting', 'value']
+    amount_keywords = ['amount', 'amt', 'debit', 'credit', 'withdrawal', 'deposit', 'spent', 'received', 'dr', 'cr', 'paid', 'payment', 'inflow', 'outflow']
+    balance_keywords = ['balance', 'bal', 'closing']
 
-    if has_date and (has_amount or has_balance):
-        return 'generic', 0.85, headers, samples
+    has_date = any(any(k in h for k in date_keywords) for h in header_lower)
+    has_amount = any(any(k in h for k in amount_keywords) for h in header_lower)
+    has_balance = any(any(k in h for k in balance_keywords) for h in header_lower)
 
-    if headers:
+    if (has_date and (has_amount or has_balance)) or (has_amount and has_balance):
+        return 'generic', 0.90, headers, samples
+
+    if headers and len(headers) >= 3:
+        # If there are 3+ columns and any amount or date keyword, treat as generic statement
+        if has_date or has_amount:
+            return 'generic', 0.80, headers, samples
         return 'unknown', 0.4, headers, samples
 
     return 'unknown', 0.0, [], []
 
 def _extract_headers_and_samples(lines: List[str]) -> Tuple[List[str], List[Dict[str, Any]]]:
-    """Locates CSV header and extracts sample rows."""
-    for idx, line in enumerate(lines[:30]):
-        if ',' in line or ';' in line or '\t' in line:
+    """Locates CSV header and extracts sample rows with multi-delimiter resilience."""
+    best_cols = []
+    best_samples = []
+    best_score = -1
+
+    delims = [',', ';', '\t', '|']
+    for idx, line in enumerate(lines[:60]):
+        delim_counts = {d: line.count(d) for d in delims}
+        max_delim = max(delim_counts, key=delim_counts.get)
+        if delim_counts[max_delim] >= 1:
             try:
-                csv_block = "\n".join(lines[idx:idx + 6])
-                df = pd.read_csv(io.StringIO(csv_block), dtype=str)
+                csv_block = "\n".join(lines[idx:idx + 8])
+                df = pd.read_csv(io.StringIO(csv_block), sep=max_delim, dtype=str, on_bad_lines='skip')
                 if len(df.columns) >= 2:
                     col_names = [str(c).strip() for c in df.columns]
                     low_cols = [c.lower() for c in col_names]
-                    if any(w in ' '.join(low_cols) for w in ['date', 'amount', 'balance', 'debit', 'credit', 'desc', 'particular', 'tran', 'remark']):
-                        samples = df.head(5).fillna('').to_dict(orient='records')
-                        return col_names, samples
+                    col_str = ' '.join(low_cols)
+                    keywords = [
+                        'date', 'dt', 'time', 'day', 'narration', 'particular', 'desc', 'detail',
+                        'remark', 'debit', 'credit', 'amount', 'amt', 'balance', 'bal', 'dr', 'cr',
+                        'withdrawal', 'deposit', 'chq', 'ref', 'chqno', 'tran'
+                    ]
+                    score = sum(1 for kw in keywords if kw in col_str)
+                    if score > best_score and score >= 2:
+                        best_score = score
+                        best_cols = col_names
+                        best_samples = df.head(5).fillna('').to_dict(orient='records')
+                        if score >= 4:
+                            return best_cols, best_samples
             except Exception:
                 continue
+
+    if best_cols:
+        return best_cols, best_samples
     return [], []

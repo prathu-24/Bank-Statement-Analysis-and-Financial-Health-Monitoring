@@ -22,7 +22,7 @@ class ColumnMapping(BaseModel):
     debit_col: Optional[str] = None
     credit_col: Optional[str] = None
     amount_col: Optional[str] = None  # If statement uses single signed amount col
-    balance_col: str
+    balance_col: Optional[str] = None # Optional; if omitted, running balance is auto-computed
     date_format: Optional[str] = None
 
 class ColumnMappingRequest(BaseModel):

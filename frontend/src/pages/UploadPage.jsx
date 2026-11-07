@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { UploadCloud, FileText, CheckCircle, AlertCircle, ArrowRight, ShieldCheck, Zap } from 'lucide-react';
+import { UploadCloud, FileText, CheckCircle, AlertCircle, ArrowRight, ShieldCheck, ShieldAlert, Zap, UserCheck, CreditCard } from 'lucide-react';
 import { statementApi } from '../services/api';
 import ColumnMappingModal from '../components/upload/ColumnMappingModal';
 import ValidationReportView from '../components/upload/ValidationReportView';
@@ -8,6 +8,13 @@ import ValidationReportView from '../components/upload/ValidationReportView';
 export default function UploadPage() {
   const navigate = useNavigate();
   const fileInputRef = useRef(null);
+
+  const savedUserRaw = typeof window !== 'undefined' ? localStorage.getItem('finsight_user') : null;
+  const savedUser = savedUserRaw ? JSON.parse(savedUserRaw) : null;
+
+  const [accountHolderName, setAccountHolderName] = useState(savedUser?.name || 'Arjun Verma');
+  const [accountNumber, setAccountNumber] = useState('');
+  const [requireKYCCheck, setRequireKYCCheck] = useState(true);
 
   const [isDragging, setIsDragging] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -47,7 +54,11 @@ export default function UploadPage() {
     setCurrentFile(file);
 
     try {
-      const data = await statementApi.uploadStatement(file);
+      const data = await statementApi.uploadStatement(
+        file,
+        requireKYCCheck ? accountHolderName : null,
+        requireKYCCheck ? accountNumber : null
+      );
       setParseResult(data);
       if (data.needs_mapping) {
         setIsMappingModalOpen(true);
@@ -66,7 +77,12 @@ export default function UploadPage() {
     setError(null);
 
     try {
-      const data = await statementApi.uploadWithMapping(currentFile, mapping);
+      const data = await statementApi.uploadWithMapping(
+        currentFile,
+        mapping,
+        requireKYCCheck ? accountHolderName : null,
+        requireKYCCheck ? accountNumber : null
+      );
       setParseResult(data);
     } catch (err) {
       setError(err.response?.data?.detail || err.message || "Failed to parse file with custom mapping.");
@@ -133,6 +149,110 @@ export default function UploadPage() {
       {/* Main Upload or Report Area */}
       {!parseResult ? (
         <div className="space-y-6">
+          {/* Account Holder Verification & Fraud Shield */}
+          <div className="bg-slate-900/80 border border-slate-800 rounded-3xl p-6 space-y-4 shadow-xl">
+            <div className="flex items-center justify-between border-b border-slate-800/80 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-indigo-500/10 border border-indigo-500/30">
+                  <ShieldCheck className="w-5 h-5 text-indigo-400" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                    <span>Account Holder & Identity Verification</span>
+                    <span className="text-[10px] bg-indigo-500/20 text-indigo-300 px-2.5 py-0.5 rounded-full border border-indigo-500/30 font-semibold uppercase tracking-wider">
+                      Anti-Fraud KYC Shield
+                    </span>
+                  </h3>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    Validates statement authenticity against account holder name and bank account number. Rejects fake, dummy, or forged entries.
+                  </p>
+                </div>
+              </div>
+              <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-slate-300">
+                <input
+                  type="checkbox"
+                  checked={requireKYCCheck}
+                  onChange={(e) => setRequireKYCCheck(e.target.checked)}
+                  className="w-4 h-4 rounded bg-slate-800 border-slate-700 text-indigo-600 focus:ring-indigo-500"
+                />
+                <span>Enforce Account Validation</span>
+              </label>
+            </div>
+
+            {requireKYCCheck && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-300 flex items-center justify-between">
+                    <span>Expected Account Holder Name:</span>
+                    <span className="text-[10px] text-slate-400">Rejects dummy/test identities</span>
+                  </label>
+                  <div className="relative">
+                    <UserCheck className="w-4 h-4 text-slate-400 absolute left-3 top-3 pointer-events-none" />
+                    <input
+                      type="text"
+                      value={accountHolderName}
+                      onChange={(e) => setAccountHolderName(e.target.value)}
+                      placeholder="e.g. Arjun Verma"
+                      className="w-full pl-9 pr-3 py-2 bg-slate-950/70 border border-slate-700/80 rounded-xl text-sm text-white placeholder-slate-400 focus:outline-none focus:border-indigo-500 transition"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-300 flex items-center justify-between">
+                    <span>Expected Bank Account Number:</span>
+                    <span className="text-[10px] text-slate-400">9–18 numeric digits</span>
+                  </label>
+                  <div className="relative">
+                    <CreditCard className="w-4 h-4 text-slate-400 absolute left-3 top-3 pointer-events-none" />
+                    <input
+                      type="text"
+                      value={accountNumber}
+                      onChange={(e) => setAccountNumber(e.target.value)}
+                      placeholder="e.g. 982014902144 (or leave blank to auto-detect from statement)"
+                      className="w-full pl-9 pr-3 py-2 bg-slate-950/70 border border-slate-700/80 rounded-xl text-sm text-white placeholder-slate-400 focus:outline-none focus:border-indigo-500 transition"
+                    />
+                  </div>
+                </div>
+
+                {/* Quick Test Profiles */}
+                <div className="md:col-span-2 flex flex-wrap items-center gap-2 pt-1 text-xs">
+                  <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Test Quick Profiles:</span>
+                  <button
+                    type="button"
+                    onClick={() => { setAccountHolderName('Arjun Verma'); setAccountNumber('982014902144'); }}
+                    className="px-2.5 py-1 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[11px] font-medium transition"
+                  >
+                    ✓ Authentic: Arjun Verma (Valid A/C)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setAccountHolderName('Pooja Sharma'); setAccountNumber('002301589123'); }}
+                    className="px-2.5 py-1 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[11px] font-medium transition"
+                  >
+                    ✓ Authentic: Pooja Sharma (ICICI A/C)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setAccountHolderName('Fake User'); setAccountNumber('0000000000'); }}
+                    className="px-2.5 py-1 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/30 text-[11px] font-medium transition"
+                    title="Simulate fake identity to test automatic rejection"
+                  >
+                    ⚠ Test Fake: 'Fake User' & 0000000000 (Triggers Rejection)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setAccountHolderName('John Doe'); setAccountNumber('1234567890'); }}
+                    className="px-2.5 py-1 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/30 text-[11px] font-medium transition"
+                    title="Simulate sequential dummy number to test automatic rejection"
+                  >
+                    ⚠ Test Fake: 'John Doe' & 1234567890 (Triggers Rejection)
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
           <div
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
@@ -301,6 +421,7 @@ export default function UploadPage() {
           report={parseResult.validation_report}
           filename={parseResult.filename}
           detectedFormat={parseResult.detected_format}
+          accountVerification={parseResult.account_verification}
           onConfirm={handleConfirmAndProceed}
           onReset={handleReset}
         />

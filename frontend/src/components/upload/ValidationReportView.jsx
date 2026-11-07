@@ -1,10 +1,13 @@
 import React, { useState } from 'react';
-import { CheckCircle2, AlertTriangle, XCircle, ArrowRight, RefreshCw, FileText, Scale } from 'lucide-react';
+import { CheckCircle2, AlertTriangle, XCircle, ArrowRight, RefreshCw, FileText, Scale, ShieldCheck, ShieldAlert } from 'lucide-react';
 
-export default function ValidationReportView({ report, filename, detectedFormat, onConfirm, onReset }) {
+export default function ValidationReportView({ report, filename, detectedFormat, accountVerification, onConfirm, onReset }) {
   const [filter, setFilter] = useState('ALL');
 
   if (!report) return null;
+
+  const isFakeAccount = accountVerification && accountVerification.is_authentic === false;
+  const isStatementValid = report.is_valid && !isFakeAccount;
 
   const {
     is_valid,
@@ -25,9 +28,53 @@ export default function ValidationReportView({ report, filename, detectedFormat,
 
   return (
     <div className="space-y-6">
+      {/* Account Verification & Fraud Shield Banner */}
+      {accountVerification && (
+        isFakeAccount ? (
+          <div className="p-5 bg-rose-500/15 border-2 border-rose-500/50 rounded-2xl flex items-start gap-4 text-rose-200 shadow-xl shadow-rose-950/40">
+            <div className="p-2.5 rounded-xl bg-rose-900/50 border border-rose-500/40 mt-0.5">
+              <ShieldAlert className="w-6 h-6 text-rose-400" />
+            </div>
+            <div className="space-y-1.5 flex-1">
+              <div className="flex items-center justify-between">
+                <h3 className="font-bold text-base text-white flex items-center gap-2">
+                  <span>STATEMENT REJECTED: Fake / Fraudulent Account Detected</span>
+                </h3>
+                <span className="text-[11px] bg-rose-500/30 text-rose-200 px-3 py-1 rounded-full border border-rose-500/40 uppercase font-extrabold tracking-wider">
+                  Fraud Shield Blocked
+                </span>
+              </div>
+              <p className="text-xs text-rose-300 font-medium">
+                {accountVerification.message}
+              </p>
+              <div className="text-[11px] text-rose-300/80 font-mono bg-slate-950/60 p-2 rounded-lg border border-rose-500/20 mt-1 inline-block">
+                Flagged Holder: <strong>{accountVerification.account_holder_name}</strong> &bull; A/C: <strong>{accountVerification.account_number}</strong>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-2xl flex items-center justify-between text-emerald-200 text-xs">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-xl bg-emerald-950/50 border border-emerald-500/30">
+                <ShieldCheck className="w-5 h-5 text-emerald-400 flex-shrink-0" />
+              </div>
+              <div>
+                <div className="font-bold text-white text-sm">Account Identity Verified & Authentic</div>
+                <div className="text-slate-400 text-xs mt-0.5">
+                  Account Holder: <strong className="text-slate-200">{accountVerification.account_holder_name}</strong> &bull; A/C No: <strong className="text-slate-200">{accountVerification.account_number}</strong>
+                </div>
+              </div>
+            </div>
+            <span className="px-3 py-1 bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 rounded-full font-bold text-[11px]">
+              KYC AUTHENTIC ✓
+            </span>
+          </div>
+        )
+      )}
+
       {/* Status Banner */}
       <div className={`p-5 rounded-2xl border flex items-start justify-between ${
-        is_valid 
+        isStatementValid 
           ? warning_count === 0 
             ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
             : 'bg-amber-500/10 border-amber-500/30 text-amber-300'
@@ -35,7 +82,7 @@ export default function ValidationReportView({ report, filename, detectedFormat,
       }`}>
         <div className="flex items-start gap-4">
           <div className="p-3 rounded-xl bg-slate-900/60 mt-1">
-            {is_valid ? (
+            {isStatementValid ? (
               warning_count === 0 ? (
                 <CheckCircle2 className="w-8 h-8 text-emerald-400" />
               ) : (
@@ -48,9 +95,9 @@ export default function ValidationReportView({ report, filename, detectedFormat,
           <div>
             <div className="flex items-center gap-2">
               <h2 className="text-xl font-bold text-white">
-                {is_valid 
+                {isStatementValid 
                   ? (warning_count === 0 ? "Statement Validated Perfectly" : "Validated with Warnings") 
-                  : "Validation Issues Encountered"}
+                  : "Statement Rejected / Validation Failed"}
               </h2>
               <span className="text-xs uppercase px-2.5 py-0.5 rounded-full font-semibold bg-slate-800 text-slate-300 border border-slate-700">
                 {detectedFormat.toUpperCase()} Format
@@ -74,13 +121,24 @@ export default function ValidationReportView({ report, filename, detectedFormat,
             <RefreshCw className="w-3.5 h-3.5" />
             Upload Another
           </button>
-          <button
-            onClick={onConfirm}
-            className="px-5 py-2.5 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-500 rounded-lg flex items-center gap-2 shadow-lg shadow-indigo-600/30 transition"
-          >
-            Confirm & Analyze
-            <ArrowRight className="w-4 h-4" />
-          </button>
+          {isStatementValid ? (
+            <button
+              onClick={onConfirm}
+              className="px-5 py-2.5 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-500 rounded-lg flex items-center gap-2 shadow-lg shadow-indigo-600/30 transition"
+            >
+              Confirm & Analyze
+              <ArrowRight className="w-4 h-4" />
+            </button>
+          ) : (
+            <button
+              disabled
+              className="px-5 py-2.5 text-xs font-bold text-rose-300 bg-rose-500/20 border border-rose-500/40 rounded-lg flex items-center gap-2 cursor-not-allowed opacity-80"
+              title="Submission blocked: The statement has fatal validation errors or fake account details."
+            >
+              <XCircle className="w-4 h-4" />
+              Submission Blocked (Rejected)
+            </button>
+          )}
         </div>
       </div>
 

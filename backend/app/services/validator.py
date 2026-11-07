@@ -1,4 +1,4 @@
-from typing import List, Dict, Any, Tuple
+from typing import List, Dict, Any, Tuple, Optional
 from datetime import datetime
 from app.schemas.transaction import NormalizedTransaction
 from app.schemas.validation import ValidationReport, ValidationIssue
@@ -12,7 +12,11 @@ class StatementValidator:
     TOLERANCE: float = 1.00  # Currency rounding tolerance in INR
 
     @classmethod
-    def validate(cls, transactions: List[NormalizedTransaction]) -> ValidationReport:
+    def validate(
+        cls,
+        transactions: List[NormalizedTransaction],
+        account_verification: Optional[Dict[str, Any]] = None
+    ) -> ValidationReport:
         if not transactions:
             return ValidationReport(
                 is_valid=False,
@@ -38,6 +42,19 @@ class StatementValidator:
         balance_mismatch_count = 0
         error_rows = set()
         warning_rows = set()
+
+        # Account Verification & Fraud Shield Check
+        if account_verification and not account_verification.get("is_authentic", True):
+            reasons = account_verification.get("reasons", ["Fake account details detected."])
+            reason_msg = "; ".join(reasons)
+            issues.append(
+                ValidationIssue(
+                    level="ERROR",
+                    code="FAKE_ACCOUNT_REJECTED",
+                    message=f"Statement Rejected: Fraudulent / fake account credentials detected. {reason_msg}",
+                    details=account_verification
+                )
+            )
 
         # 1. Duplicate Detection
         seen_keys: Dict[Tuple[str, str, float, float, float], int] = {}

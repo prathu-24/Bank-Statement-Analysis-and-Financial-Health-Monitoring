@@ -22,6 +22,7 @@ from app.parsers import (
 from app.services.validator import StatementValidator
 from app.services.categorizer import TransactionCategorizer
 from app.services.sanitizer import DataSanitizer
+from app.services.account_validator import AccountValidator
 
 router = APIRouter(prefix="/api/upload", tags=["Upload & Parsing"])
 
@@ -46,10 +47,16 @@ def _get_parser_for_format(fmt: str):
     return GenericCSVParser()
 
 @router.post("", response_model=ParseResult)
-async def upload_statement(file: UploadFile = File(...), db: Session = Depends(get_db)):
+async def upload_statement(
+    file: UploadFile = File(...),
+    account_holder_name: Optional[str] = Form(None),
+    account_number: Optional[str] = Form(None),
+    db: Session = Depends(get_db)
+):
     """
     Upload a bank statement (CSV, XLSX, or PDF).
-    Automatically detects format, parses transactions, categorizes them, and runs validation.
+    Automatically detects format, validates account holder name & account number,
+    parses transactions, categorizes them, and runs ledger validation.
     """
     filename = file.filename or "statement.csv"
     ext = os.path.splitext(filename)[1].lower()
@@ -72,6 +79,24 @@ async def upload_statement(file: UploadFile = File(...), db: Session = Depends(g
             detail="The uploaded statement file is empty (0 bytes). Please upload a valid bank statement."
         )
 
+    # Forensic KYC & Account Authenticity Validation
+    raw_header_sample = ""
+    try:
+        raw_header_sample = content[:4096].decode('utf-8', errors='ignore')
+    except Exception:
+        raw_header_sample = ""
+
+    extracted_name, extracted_acc = AccountValidator.extract_account_metadata_from_text(raw_header_sample)
+    has_account_info = bool(account_holder_name or account_number or extracted_name or extracted_acc)
+    
+    account_verif = None
+    if has_account_info:
+        account_verif = AccountValidator.verify_account(
+            account_name=account_holder_name,
+            account_number=account_number,
+            raw_statement_header=raw_header_sample
+        )
+
     fmt, confidence, headers, samples = detect_format(content, filename)
 
     if fmt == 'unknown':
@@ -83,7 +108,10 @@ async def upload_statement(file: UploadFile = File(...), db: Session = Depends(g
             sample_rows=samples,
             needs_mapping=True,
             transactions=[],
-            validation_report=None
+            validation_report=None,
+            account_holder_name=account_verif.get("account_holder_name") if account_verif else None,
+            account_number=account_verif.get("account_number") if account_verif else None,
+            account_verification=account_verif
         )
 
     parser = _get_parser_for_format(fmt)
@@ -111,7 +139,7 @@ async def upload_statement(file: UploadFile = File(...), db: Session = Depends(g
             user_overrides=overrides
         )
 
-    validation_report = StatementValidator.validate(transactions)
+    validation_report = StatementValidator.validate(transactions, account_verification=account_verif)
 
     return ParseResult(
         filename=filename,
@@ -121,13 +149,18 @@ async def upload_statement(file: UploadFile = File(...), db: Session = Depends(g
         sample_rows=samples,
         needs_mapping=False,
         transactions=transactions,
-        validation_report=validation_report.model_dump()
+        validation_report=validation_report.model_dump(),
+        account_holder_name=account_verif.get("account_holder_name") if account_verif else None,
+        account_number=account_verif.get("account_number") if account_verif else None,
+        account_verification=account_verif
     )
 
 @router.post("/mapped", response_model=ParseResult)
 async def upload_with_mapping(
     file: UploadFile = File(...),
     mapping: str = Form(..., description="JSON stringified ColumnMapping"),
+    account_holder_name: Optional[str] = Form(None),
+    account_number: Optional[str] = Form(None),
     db: Session = Depends(get_db)
 ):
     """
@@ -138,6 +171,23 @@ async def upload_with_mapping(
 
     if not content or len(content.strip()) == 0:
         raise HTTPException(status_code=400, detail="Uploaded file is empty.")
+
+    raw_header_sample = ""
+    try:
+        raw_header_sample = content[:4096].decode('utf-8', errors='ignore')
+    except Exception:
+        raw_header_sample = ""
+
+    extracted_name, extracted_acc = AccountValidator.extract_account_metadata_from_text(raw_header_sample)
+    has_account_info = bool(account_holder_name or account_number or extracted_name or extracted_acc)
+    
+    account_verif = None
+    if has_account_info:
+        account_verif = AccountValidator.verify_account(
+            account_name=account_holder_name,
+            account_number=account_number,
+            raw_statement_header=raw_header_sample
+        )
 
     try:
         map_dict = json.loads(mapping)
@@ -162,7 +212,7 @@ async def upload_with_mapping(
             user_overrides=overrides
         )
 
-    validation_report = StatementValidator.validate(transactions)
+    validation_report = StatementValidator.validate(transactions, account_verification=account_verif)
 
     return ParseResult(
         filename=filename,
@@ -172,7 +222,10 @@ async def upload_with_mapping(
         sample_rows=[],
         needs_mapping=False,
         transactions=transactions,
-        validation_report=validation_report.model_dump()
+        validation_report=validation_report.model_dump(),
+        account_holder_name=account_verif.get("account_holder_name") if account_verif else None,
+        account_number=account_verif.get("account_number") if account_verif else None,
+        account_verification=account_verif
     )
 
 @router.post("/confirm")
@@ -191,13 +244,16 @@ async def confirm_and_save(transactions: List[NormalizedTransaction], db: Sessio
         masked_ref = DataSanitizer.mask_sensitive_data(tx.reference_id) if tx.reference_id else None
         merchant = TransactionCategorizer.extract_normalized_merchant(masked_desc)
         cat = tx.category
-        if not cat or cat == "Uncategorized":
-            cat = TransactionCategorizer.categorize(
+        conf = 1.0
+        if not cat or cat in ("Uncategorized", "Uncategorized – review"):
+            cat, conf = TransactionCategorizer.categorize_with_confidence(
                 masked_desc,
                 credit=tx.credit,
                 debit=tx.debit,
                 user_overrides=overrides
             )
+
+        is_low = bool(conf < 0.60 or cat in ("Uncategorized – review", "Uncategorized"))
 
         model = TransactionModel(
             date=tx.date,
@@ -211,7 +267,9 @@ async def confirm_and_save(transactions: List[NormalizedTransaction], db: Sessio
             source_page=tx.source_page or 1,
             source_row=tx.source_row,
             raw_text=DataSanitizer.mask_sensitive_data(tx.raw_text or ""),
-            extraction_confidence=tx.extraction_confidence if tx.extraction_confidence is not None else 1.0
+            extraction_confidence=tx.extraction_confidence if tx.extraction_confidence is not None else 1.0,
+            is_low_confidence=is_low,
+            user_confirmed=False
         )
         db_models.append(model)
 
@@ -276,7 +334,27 @@ async def load_demo_statement(demo_type: str, db: Session = Depends(get_db)):
             user_overrides=overrides
         )
 
-    validation_report = StatementValidator.validate(transactions)
+    # Check demo account authenticity
+    raw_header = content[:4096].decode('utf-8', errors='ignore') if fmt != 'pdf' else ""
+    demo_accounts = {
+        "hdfc": ("Arjun Verma", "••••••••4821"),
+        "sbi": ("Arjun Verma", "••••••••9012"),
+        "icici": ("Pooja Sharma", "002301589123"),
+        "axis": ("Vikram Mehta", "912010045892341"),
+        "kotak": ("Ananya Sen", "489201992"),
+        "generic": ("Arjun Verma", "982014902144"),
+        "salaried": ("Arjun Verma", "982014902144"),
+        "gig_worker": ("Rahul Sharma", "501004829102"),
+        "student": ("Ananya Sen", "390192840192"),
+    }
+    def_name, def_acc = demo_accounts.get(key, (None, None))
+    account_verif = AccountValidator.verify_account(
+        account_name=def_name,
+        account_number=def_acc,
+        raw_statement_header=raw_header
+    )
+
+    validation_report = StatementValidator.validate(transactions, account_verification=account_verif)
 
     return ParseResult(
         filename=file_name,
@@ -286,5 +364,8 @@ async def load_demo_statement(demo_type: str, db: Session = Depends(get_db)):
         sample_rows=samples,
         needs_mapping=False,
         transactions=transactions,
-        validation_report=validation_report.model_dump()
+        validation_report=validation_report.model_dump(),
+        account_holder_name=account_verif.get("account_holder_name"),
+        account_number=account_verif.get("account_number"),
+        account_verification=account_verif
     )

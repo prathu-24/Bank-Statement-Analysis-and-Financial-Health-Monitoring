@@ -34,9 +34,11 @@ api.interceptors.response.use(
 );
 
 export const statementApi = {
-  uploadStatement: async (file) => {
+  uploadStatement: async (file, accountName = null, accountNumber = null) => {
     const formData = new FormData();
     formData.append('file', file);
+    if (accountName) formData.append('account_holder_name', accountName);
+    if (accountNumber) formData.append('account_number', accountNumber);
     const response = await api.post('/upload', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
@@ -48,10 +50,12 @@ export const statementApi = {
     return response.data;
   },
 
-  uploadWithMapping: async (file, mapping) => {
+  uploadWithMapping: async (file, mapping, accountName = null, accountNumber = null) => {
     const formData = new FormData();
     formData.append('file', file);
     formData.append('mapping', JSON.stringify(mapping));
+    if (accountName) formData.append('account_holder_name', accountName);
+    if (accountNumber) formData.append('account_number', accountNumber);
     const response = await api.post('/upload/mapped', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     });

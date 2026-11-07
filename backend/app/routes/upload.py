@@ -80,22 +80,17 @@ async def upload_statement(
         )
 
     # Forensic KYC & Account Authenticity Validation
-    raw_header_sample = ""
-    try:
-        raw_header_sample = content[:4096].decode('utf-8', errors='ignore')
-    except Exception:
-        raw_header_sample = ""
+    extracted_name, extracted_acc, raw_header_sample = AccountValidator.extract_metadata_from_file_bytes(
+        content,
+        filename
+    )
 
-    extracted_name, extracted_acc = AccountValidator.extract_account_metadata_from_text(raw_header_sample)
-    has_account_info = bool(account_holder_name or account_number or extracted_name or extracted_acc)
-    
-    account_verif = None
-    if has_account_info:
-        account_verif = AccountValidator.verify_account(
-            account_name=account_holder_name,
-            account_number=account_number,
-            raw_statement_header=raw_header_sample
-        )
+    account_verif = AccountValidator.verify_account(
+        account_name=account_holder_name or extracted_name,
+        account_number=account_number or extracted_acc,
+        raw_statement_header=raw_header_sample,
+        expected_user_name=account_holder_name or "Arjun Verma"
+    )
 
     fmt, confidence, headers, samples = detect_format(content, filename)
 
@@ -172,22 +167,17 @@ async def upload_with_mapping(
     if not content or len(content.strip()) == 0:
         raise HTTPException(status_code=400, detail="Uploaded file is empty.")
 
-    raw_header_sample = ""
-    try:
-        raw_header_sample = content[:4096].decode('utf-8', errors='ignore')
-    except Exception:
-        raw_header_sample = ""
+    extracted_name, extracted_acc, raw_header_sample = AccountValidator.extract_metadata_from_file_bytes(
+        content,
+        filename
+    )
 
-    extracted_name, extracted_acc = AccountValidator.extract_account_metadata_from_text(raw_header_sample)
-    has_account_info = bool(account_holder_name or account_number or extracted_name or extracted_acc)
-    
-    account_verif = None
-    if has_account_info:
-        account_verif = AccountValidator.verify_account(
-            account_name=account_holder_name,
-            account_number=account_number,
-            raw_statement_header=raw_header_sample
-        )
+    account_verif = AccountValidator.verify_account(
+        account_name=account_holder_name or extracted_name,
+        account_number=account_number or extracted_acc,
+        raw_statement_header=raw_header_sample,
+        expected_user_name=account_holder_name or "Arjun Verma"
+    )
 
     try:
         map_dict = json.loads(mapping)
@@ -301,6 +291,7 @@ async def load_demo_statement(demo_type: str, db: Session = Depends(get_db)):
         "generic": "generic_sample.csv",
         "pdf": "sample_statement.pdf",
         "broken": "broken_sample.csv",
+        "fake": "fake_sample.csv",
         "salaried": "persona_salaried.csv",
         "gig_worker": "persona_gig_worker.csv",
         "student": "persona_student.csv",
@@ -334,24 +325,31 @@ async def load_demo_statement(demo_type: str, db: Session = Depends(get_db)):
             user_overrides=overrides
         )
 
-    # Check demo account authenticity
-    raw_header = content[:4096].decode('utf-8', errors='ignore') if fmt != 'pdf' else ""
+    # Check demo account authenticity directly from statement bytes & demo context
+    extracted_name, extracted_acc, raw_header = AccountValidator.extract_metadata_from_file_bytes(
+        content,
+        file_name
+    )
     demo_accounts = {
         "hdfc": ("Arjun Verma", "••••••••4821"),
         "sbi": ("Arjun Verma", "••••••••9012"),
         "icici": ("Pooja Sharma", "002301589123"),
         "axis": ("Vikram Mehta", "912010045892341"),
         "kotak": ("Ananya Sen", "489201992"),
+        "pdf": ("Arjun Verma", "••••••••8841"),
+        "excel": ("Arjun Verma", "982014902144"),
         "generic": ("Arjun Verma", "982014902144"),
         "salaried": ("Arjun Verma", "982014902144"),
         "gig_worker": ("Rahul Sharma", "501004829102"),
         "student": ("Ananya Sen", "390192840192"),
+        "broken": ("Arjun Verma", "982014902144"),
     }
     def_name, def_acc = demo_accounts.get(key, (None, None))
     account_verif = AccountValidator.verify_account(
-        account_name=def_name,
-        account_number=def_acc,
-        raw_statement_header=raw_header
+        account_name=extracted_name or def_name,
+        account_number=extracted_acc or def_acc,
+        raw_statement_header=raw_header,
+        expected_user_name=def_name or "Arjun Verma"
     )
 
     validation_report = StatementValidator.validate(transactions, account_verification=account_verif)

@@ -12,10 +12,6 @@ export default function UploadPage() {
   const savedUserRaw = typeof window !== 'undefined' ? localStorage.getItem('finsight_user') : null;
   const savedUser = savedUserRaw ? JSON.parse(savedUserRaw) : null;
 
-  const [accountHolderName, setAccountHolderName] = useState(savedUser?.name || 'Arjun Verma');
-  const [accountNumber, setAccountNumber] = useState('');
-  const [requireKYCCheck, setRequireKYCCheck] = useState(true);
-
   const [isDragging, setIsDragging] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -54,11 +50,8 @@ export default function UploadPage() {
     setCurrentFile(file);
 
     try {
-      const data = await statementApi.uploadStatement(
-        file,
-        requireKYCCheck ? accountHolderName : null,
-        requireKYCCheck ? accountNumber : null
-      );
+      // Automatic detection: FinSight reads account holder name & account number directly from the statement
+      const data = await statementApi.uploadStatement(file);
       setParseResult(data);
       if (data.needs_mapping) {
         setIsMappingModalOpen(true);
@@ -77,12 +70,7 @@ export default function UploadPage() {
     setError(null);
 
     try {
-      const data = await statementApi.uploadWithMapping(
-        currentFile,
-        mapping,
-        requireKYCCheck ? accountHolderName : null,
-        requireKYCCheck ? accountNumber : null
-      );
+      const data = await statementApi.uploadWithMapping(currentFile, mapping);
       setParseResult(data);
     } catch (err) {
       setError(err.response?.data?.detail || err.message || "Failed to parse file with custom mapping.");
@@ -149,108 +137,27 @@ export default function UploadPage() {
       {/* Main Upload or Report Area */}
       {!parseResult ? (
         <div className="space-y-6">
-          {/* Account Holder Verification & Fraud Shield */}
-          <div className="bg-slate-900/80 border border-slate-800 rounded-3xl p-6 space-y-4 shadow-xl">
-            <div className="flex items-center justify-between border-b border-slate-800/80 pb-3">
-              <div className="flex items-center gap-2.5">
-                <div className="p-2 rounded-xl bg-indigo-500/10 border border-indigo-500/30">
-                  <ShieldCheck className="w-5 h-5 text-indigo-400" />
-                </div>
-                <div>
+          {/* Automated Statement KYC & Anti-Fraud Shield */}
+          <div className="bg-gradient-to-r from-slate-900 via-indigo-950/30 to-slate-900 border border-indigo-500/30 rounded-3xl p-5 shadow-xl">
+            <div className="flex items-start gap-3.5">
+              <div className="p-2.5 rounded-2xl bg-indigo-500/15 border border-indigo-500/30 text-indigo-400 mt-0.5">
+                <ShieldCheck className="w-6 h-6" />
+              </div>
+              <div className="space-y-1 flex-1">
+                <div className="flex items-center justify-between">
                   <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                    <span>Account Holder & Identity Verification</span>
-                    <span className="text-[10px] bg-indigo-500/20 text-indigo-300 px-2.5 py-0.5 rounded-full border border-indigo-500/30 font-semibold uppercase tracking-wider">
-                      Anti-Fraud KYC Shield
+                    <span>Automated Statement Forensic & Account Shield</span>
+                    <span className="text-[10px] bg-emerald-500/20 text-emerald-300 px-2.5 py-0.5 rounded-full border border-emerald-500/30 font-semibold uppercase tracking-wider">
+                      Auto-Detection Active
                     </span>
                   </h3>
-                  <p className="text-xs text-slate-400 mt-0.5">
-                    Validates statement authenticity against account holder name and bank account number. Rejects fake, dummy, or forged entries.
-                  </p>
+                  <span className="text-[11px] text-indigo-300/80 font-mono hidden sm:inline-block">Zero Manual Typing</span>
                 </div>
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  FinSight automatically reads the <strong className="text-slate-200">Account Holder Name</strong> and <strong className="text-slate-200">Bank Account Number</strong> directly from your uploaded statement file (PDF, CSV, Excel). Statements with dummy identities (e.g. <em>Fake Dummy User, John Doe, Test User</em>) or fake account sequences (e.g. <em>0000000000, 1234567890</em>) are <strong>strictly rejected</strong> and submission is blocked.
+                </p>
               </div>
-              <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-slate-300">
-                <input
-                  type="checkbox"
-                  checked={requireKYCCheck}
-                  onChange={(e) => setRequireKYCCheck(e.target.checked)}
-                  className="w-4 h-4 rounded bg-slate-800 border-slate-700 text-indigo-600 focus:ring-indigo-500"
-                />
-                <span>Enforce Account Validation</span>
-              </label>
             </div>
-
-            {requireKYCCheck && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-300 flex items-center justify-between">
-                    <span>Expected Account Holder Name:</span>
-                    <span className="text-[10px] text-slate-400">Rejects dummy/test identities</span>
-                  </label>
-                  <div className="relative">
-                    <UserCheck className="w-4 h-4 text-slate-400 absolute left-3 top-3 pointer-events-none" />
-                    <input
-                      type="text"
-                      value={accountHolderName}
-                      onChange={(e) => setAccountHolderName(e.target.value)}
-                      placeholder="e.g. Arjun Verma"
-                      className="w-full pl-9 pr-3 py-2 bg-slate-950/70 border border-slate-700/80 rounded-xl text-sm text-white placeholder-slate-400 focus:outline-none focus:border-indigo-500 transition"
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-300 flex items-center justify-between">
-                    <span>Expected Bank Account Number:</span>
-                    <span className="text-[10px] text-slate-400">9–18 numeric digits</span>
-                  </label>
-                  <div className="relative">
-                    <CreditCard className="w-4 h-4 text-slate-400 absolute left-3 top-3 pointer-events-none" />
-                    <input
-                      type="text"
-                      value={accountNumber}
-                      onChange={(e) => setAccountNumber(e.target.value)}
-                      placeholder="e.g. 982014902144 (or leave blank to auto-detect from statement)"
-                      className="w-full pl-9 pr-3 py-2 bg-slate-950/70 border border-slate-700/80 rounded-xl text-sm text-white placeholder-slate-400 focus:outline-none focus:border-indigo-500 transition"
-                    />
-                  </div>
-                </div>
-
-                {/* Quick Test Profiles */}
-                <div className="md:col-span-2 flex flex-wrap items-center gap-2 pt-1 text-xs">
-                  <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Test Quick Profiles:</span>
-                  <button
-                    type="button"
-                    onClick={() => { setAccountHolderName('Arjun Verma'); setAccountNumber('982014902144'); }}
-                    className="px-2.5 py-1 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[11px] font-medium transition"
-                  >
-                    ✓ Authentic: Arjun Verma (Valid A/C)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => { setAccountHolderName('Pooja Sharma'); setAccountNumber('002301589123'); }}
-                    className="px-2.5 py-1 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[11px] font-medium transition"
-                  >
-                    ✓ Authentic: Pooja Sharma (ICICI A/C)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => { setAccountHolderName('Fake User'); setAccountNumber('0000000000'); }}
-                    className="px-2.5 py-1 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/30 text-[11px] font-medium transition"
-                    title="Simulate fake identity to test automatic rejection"
-                  >
-                    ⚠ Test Fake: 'Fake User' & 0000000000 (Triggers Rejection)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => { setAccountHolderName('John Doe'); setAccountNumber('1234567890'); }}
-                    className="px-2.5 py-1 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/30 text-[11px] font-medium transition"
-                    title="Simulate sequential dummy number to test automatic rejection"
-                  >
-                    ⚠ Test Fake: 'John Doe' & 1234567890 (Triggers Rejection)
-                  </button>
-                </div>
-              </div>
-            )}
           </div>
 
           <div
@@ -301,7 +208,7 @@ export default function UploadPage() {
               Test parsing, double-entry ledger validation, categorization, and forecasting with one click:
             </p>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 pt-1">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3 pt-1">
               <button
                 type="button"
                 disabled={loading}
@@ -358,13 +265,30 @@ export default function UploadPage() {
                 type="button"
                 disabled={loading}
                 onClick={() => handleLoadDemo('broken')}
-                className="p-3 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 rounded-xl text-left transition space-y-1 group"
+                className="p-3 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 rounded-xl text-left transition space-y-1 group"
               >
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-rose-300 group-hover:text-rose-200">Broken CSV</span>
-                  <span className="text-[10px] text-rose-400 uppercase font-bold">Audit Demo</span>
+                  <span className="text-xs font-bold text-amber-300 group-hover:text-amber-200">Broken CSV</span>
+                  <span className="text-[10px] text-amber-400 uppercase font-bold">Audit Demo</span>
                 </div>
-                <p className="text-[10px] text-rose-300/70">Deliberate math errors, invalid dates, duplicates</p>
+                <p className="text-[10px] text-amber-300/70">Math errors, invalid dates, duplicates</p>
+              </button>
+
+              <button
+                type="button"
+                disabled={loading}
+                onClick={() => handleLoadDemo('fake')}
+                className="p-3 bg-rose-500/15 hover:bg-rose-500/25 border-2 border-rose-500/50 rounded-xl text-left transition space-y-1 group shadow-lg shadow-rose-950/40"
+                title="Loads a statement with 'Fake Dummy User' and 0000000000 to verify automatic fraud rejection"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-rose-300 group-hover:text-rose-100 flex items-center gap-1">
+                    <ShieldAlert className="w-3.5 h-3.5 text-rose-400" />
+                    Fake A/C
+                  </span>
+                  <span className="text-[10px] text-rose-300 uppercase font-black px-1.5 py-0.5 bg-rose-500/30 rounded border border-rose-500/40">REJECT</span>
+                </div>
+                <p className="text-[10px] text-rose-300/80">Auto-detects fake credentials and rejects statement</p>
               </button>
             </div>
 

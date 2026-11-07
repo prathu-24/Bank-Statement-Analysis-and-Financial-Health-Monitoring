@@ -22,4 +22,3 @@ class TransactionModel(Base):
     is_low_confidence = Column(Boolean, default=False)
     user_confirmed = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.utcnow)
-

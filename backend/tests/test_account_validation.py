@@ -116,3 +116,23 @@ def test_statement_validator_marks_invalid_on_fake_account():
     assert report.is_valid is False
     assert report.error_count >= 1
     assert any(iss.code == "FAKE_ACCOUNT_REJECTED" for iss in report.issues)
+
+def test_extract_metadata_from_file_bytes():
+    # Test CSV with headers
+    csv_bytes = b"HDFC BANK LIMITED\nCustomer Name: MR ARJUN VERMA\nAccount Number: \xe2\x80\xa2\xe2\x80\xa2\xe2\x80\xa2\xe2\x80\xa2\xe2\x80\xa2\xe2\x80\xa2\xe2\x80\xa2\xe2\x80\xa24821\n"
+    name, acc, text = AccountValidator.extract_metadata_from_file_bytes(csv_bytes, "hdfc.csv")
+    assert name == "Arjun Verma"
+    assert "4821" in acc
+
+def test_fake_statement_automatic_detection_and_rejection():
+    fake_csv = b"METROPOLITAN DUMMY BANK\nCustomer Name: Fake Dummy User\nAccount Number: 0000000000\n"
+    name, acc, text = AccountValidator.extract_metadata_from_file_bytes(fake_csv, "fake_sample.csv")
+    assert name == "Fake Dummy User"
+    assert acc == "0000000000"
+
+    res = AccountValidator.verify_account(raw_statement_header=text)
+    assert res["is_authentic"] is False
+    assert res["status"] == "REJECTED_FAKE_ACCOUNT"
+    assert any("repeated-digit" in r.lower() for r in res["reasons"])
+    assert any("fake" in r.lower() or "blacklisted" in r.lower() or "dummy" in r.lower() for r in res["reasons"])
+

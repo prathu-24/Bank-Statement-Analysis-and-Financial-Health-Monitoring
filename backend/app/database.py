@@ -36,6 +36,8 @@ def init_db():
                 ("source_row", "INTEGER"),
                 ("raw_text", "TEXT DEFAULT ''"),
                 ("extraction_confidence", "FLOAT DEFAULT 1.0"),
+                ("is_low_confidence", "BOOLEAN DEFAULT 0"),
+                ("user_confirmed", "BOOLEAN DEFAULT 0"),
             ]
             for col_name, col_type in new_columns:
                 if col_name not in existing_cols:
